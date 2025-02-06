@@ -3,7 +3,6 @@ module github.com/projectsveltos/lua-utils/glua-strings
 go 1.23
 
 require (
-	github.com/chai2010/glua-helper v0.0.0-20171228064744-0e9a290dbcdf
 	github.com/stretchr/testify v1.10.0
 	github.com/yuin/gopher-lua v1.1.1
 )

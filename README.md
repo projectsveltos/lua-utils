@@ -11,5 +11,7 @@ and copyrighted by projectsveltos.io.
 Contains a fork of [github.com/chai2010/glua-strings](https://github.com/chai2010/glua-strings).
 This fork was created due to the original project being unmaintained.
 
+With some small code helpers taken out of [github.com/chai2010/glua-helper](github.com/chai2010/glua-helper).
+
 The original license and attribution have been preserved in their entirety.
 All credit for the original code belongs to the original authors.

@@ -67,6 +67,17 @@ var stringsFuncs = map[string]lua.LGFunction{
 		ret := strings.ContainsAny(s, chars)
 		return RetBool(L, ret)
 	},
+	"ContainsFunc": func(L *lua.LState) int {
+		s := L.CheckString(1)
+		fn := L.CheckFunction(2)
+
+		ret := strings.ContainsFunc(s, func(r rune) bool {
+			return callFunc_Rune_ret_Bool(
+				L, fn, lua.LNumber(r),
+			)
+		})
+		return RetBool(L, ret)
+	},
 	"ContainsRune": func(L *lua.LState) int {
 		s := L.CheckString(1)
 		r := L.CheckInt(2)
@@ -80,6 +91,46 @@ var stringsFuncs = map[string]lua.LGFunction{
 
 		ret := strings.Count(s, substr)
 		return RetInt(L, ret)
+	},
+	"Cut": func(L *lua.LState) int {
+		s := L.CheckString(1)
+		sep := L.CheckString(2)
+
+		before, after, found := strings.Cut(s, sep)
+
+		tb := L.NewTable()
+		tb.RawSetString("before", lua.LString(before))
+		tb.RawSetString("after", lua.LString(after))
+		tb.RawSetString("found", lua.LBool(found))
+
+		L.Push(tb)
+		return 1
+	},
+	"CutPrefix": func(L *lua.LState) int {
+		s := L.CheckString(1)
+		prefix := L.CheckString(2)
+
+		after, found := strings.CutPrefix(s, prefix)
+
+		tb := L.NewTable()
+		tb.RawSetString("after", lua.LString(after))
+		tb.RawSetString("found", lua.LBool(found))
+
+		L.Push(tb)
+		return 1
+	},
+	"CutSuffix": func(L *lua.LState) int {
+		s := L.CheckString(1)
+		suffix := L.CheckString(2)
+
+		before, found := strings.CutSuffix(s, suffix)
+
+		tb := L.NewTable()
+		tb.RawSetString("before", lua.LString(before))
+		tb.RawSetString("found", lua.LBool(found))
+
+		L.Push(tb)
+		return 1
 	},
 	"EqualFold": func(L *lua.LState) int {
 		s := L.CheckString(1)
@@ -233,6 +284,14 @@ var stringsFuncs = map[string]lua.LGFunction{
 		n := L.CheckInt(4)
 
 		ret := strings.Replace(s, t, z, n)
+		return RetString(L, ret)
+	},
+	"ReplaceAll": func(L *lua.LState) int {
+		s := L.CheckString(1)
+		old := L.CheckString(2)
+		new := L.CheckString(3)
+
+		ret := strings.ReplaceAll(s, old, new)
 		return RetString(L, ret)
 	},
 	"Split": func(L *lua.LState) int {

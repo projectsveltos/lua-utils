@@ -234,6 +234,127 @@ func TestContainsAny(t *testing.T) {
 	}
 }
 
+func TestContainsFunc(t *testing.T) {
+	const luaFuncName = "ContainsFunc"
+
+	tests := []struct {
+		s       string
+		luaFunc string
+		goFunc  func(rune) bool
+	}{
+		{
+			s: "",
+			luaFunc: `
+				function(r)
+					return true
+				end
+			`,
+			goFunc: func(r rune) bool { return true },
+		},
+		{
+			s: "hello",
+			luaFunc: `
+				function(r)
+					return r == string.byte("l")
+				end
+			`,
+			goFunc: func(r rune) bool { return r == 'l' },
+		},
+		{
+			s: "hello123",
+			luaFunc: `
+				function(r)
+					return r >= string.byte("0") and r <= string.byte("9")
+				end
+			`,
+			goFunc: func(r rune) bool { return r >= '0' && r <= '9' },
+		},
+		{
+			s: "你好世界",
+			luaFunc: `
+				function(r)
+					return r == 0x597D
+				end
+			`,
+			goFunc: func(r rune) bool { return r == '好' },
+		},
+		{
+			s: "hello world",
+			luaFunc: `
+				function(r)
+					return r == string.byte(" ")
+				end
+			`,
+			goFunc: func(r rune) bool { return r == ' ' },
+		},
+		{
+			s: "αβγδ",
+			luaFunc: `
+				function(r)
+					return r == 0x03B3
+				end
+			`,
+			goFunc: func(r rune) bool { return r == 'γ' },
+		},
+		{
+			s: "hello\u0000world",
+			luaFunc: `
+				function(r)
+					return r == 0
+				end
+			`,
+			goFunc: func(r rune) bool { return r == 0 },
+		},
+		{
+			s: "hello世界",
+			luaFunc: `
+				function(r)
+					return r > 0x4E00
+				end
+			`,
+			goFunc: func(r rune) bool { return unicode.Is(unicode.Han, r) },
+		},
+		{
+			s: "no match",
+			luaFunc: `
+				function(r)
+					return false
+				end
+			`,
+			goFunc: func(r rune) bool { return false },
+		},
+		{
+			s: "HELLO",
+			luaFunc: `
+				function(r)
+					return r >= string.byte("A") and r <= string.byte("Z")
+				end
+			`,
+			goFunc: func(r rune) bool { return r >= 'A' && r <= 'Z' },
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
+			defer testL.Close()
+
+			expected := strings.ContainsFunc(tt.s, tt.goFunc)
+
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
+			testL.Push(lua.LString(tt.s))
+			testL.Call(1, 1)
+
+			got := testL.ToBool(-1)
+			testL.Pop(1)
+
+			require.Equal(t, expected, got,
+				"case %d: Lua returned %v but Go returned %v (string: %q, func: %q)",
+				i, got, expected, tt.s, tt.luaFunc)
+		})
+	}
+}
+
 func TestContainsRune(t *testing.T) {
 	const luaFuncName = "ContainsRune"
 
@@ -320,6 +441,201 @@ func TestCount(t *testing.T) {
 		require.Equal(t, expected, got,
 			"case %d: Lua returned %v but Go returned %v (string: %q, substr: %q)",
 			i, got, expected, tests[i].s, tests[i].substr)
+	}
+}
+
+func TestCutPrefix(t *testing.T) {
+	const luaFuncName = "CutPrefix"
+
+	L := setupLuaTest(t, luaFuncName)
+	defer L.Close()
+
+	tests := []struct {
+		s      string
+		prefix string
+	}{
+		{"", ""},
+		{"hello", ""},
+		{"", "hello"},
+		{"hello", "he"},
+		{"hello", "hello"},
+		{"hello", "world"},
+		{"hello world", "hello"},
+		{"你好世界", "你好"},
+		{"αβγδ", "αβ"},
+		{"hello\nworld", "hello"},
+		{"  hello", "  "},
+		{"hello", "h"},
+		{"\u0000hello", "\u0000"},
+		{"prefixhello", "prefix"},
+		{"hello", "HELLO"},
+		{"", "\u0000"},
+		{"hellohello", "hello"},
+		{"!world", "!"},
+		{"prefix", "prefix"},
+		{"你好hello", "你好"},
+	}
+
+	for i := range tests {
+		after, found := strings.CutPrefix(tests[i].s, tests[i].prefix)
+
+		args := []lua.LValue{
+			lua.LString(tests[i].s),
+			lua.LString(tests[i].prefix),
+		}
+
+		L.Push(L.GetGlobal(luaFuncName))
+		for _, arg := range args {
+			L.Push(arg)
+		}
+		L.Call(2, 1)
+
+		result := L.CheckTable(-1)
+		L.Pop(1)
+
+		gotAfter := result.RawGetString("after").String()
+		gotFound := bool(result.RawGetString("found").(lua.LBool))
+
+		require.Equal(t, after, gotAfter,
+			"case %d: Lua returned after=%q but Go returned after=%q (string: %q, prefix: %q)",
+			i, gotAfter, after, tests[i].s, tests[i].prefix)
+
+		require.Equal(t, found, gotFound,
+			"case %d: Lua returned found=%v but Go returned found=%v (string: %q, prefix: %q)",
+			i, gotFound, found, tests[i].s, tests[i].prefix)
+	}
+}
+
+func TestCut(t *testing.T) {
+	const luaFuncName = "Cut"
+
+	L := setupLuaTest(t, luaFuncName)
+	defer L.Close()
+
+	tests := []struct {
+		s   string
+		sep string
+	}{
+		{"", ""},
+		{"hello", ""},
+		{"", "hello"},
+		{"hello world", " "},
+		{"hello,world", ","},
+		{"hello", "l"},
+		{"aaa", "a"},
+		{"no-separator", "xyz"},
+		{"prefix==suffix", "=="},
+		{"你好世界", "好"},
+		{"αβγδ", "β"},
+		{"line1\nline2", "\n"},
+		{"tab\tseparated", "\t"},
+		{"null\u0000char", "\u0000"},
+		{"hello世界hello", "世界"},
+		{"  spaced  ", " "},
+		{"hello|world|!", "|"},
+		{"..sep..", "."},
+		{"first:second:third", ":"},
+		{"prefix", "prefix"},
+		{"hello", "HELLO"},
+		{"a,b,,d", ","},
+		{"Hello, 世界!", ", "},
+		{"\u0000abc\u0000", "\u0000"},
+	}
+
+	for i := range tests {
+		before, after, found := strings.Cut(tests[i].s, tests[i].sep)
+
+		args := []lua.LValue{
+			lua.LString(tests[i].s),
+			lua.LString(tests[i].sep),
+		}
+
+		L.Push(L.GetGlobal(luaFuncName))
+		for _, arg := range args {
+			L.Push(arg)
+		}
+		L.Call(2, 1)
+
+		result := L.CheckTable(-1)
+		L.Pop(1)
+
+		gotBefore := result.RawGetString("before").String()
+		gotAfter := result.RawGetString("after").String()
+		gotFound := bool(result.RawGetString("found").(lua.LBool))
+
+		require.Equal(t, before, gotBefore,
+			"case %d: Lua returned before=%q but Go returned before=%q (string: %q, sep: %q)",
+			i, gotBefore, before, tests[i].s, tests[i].sep)
+
+		require.Equal(t, after, gotAfter,
+			"case %d: Lua returned after=%q but Go returned after=%q (string: %q, sep: %q)",
+			i, gotAfter, after, tests[i].s, tests[i].sep)
+
+		require.Equal(t, found, gotFound,
+			"case %d: Lua returned found=%v but Go returned found=%v (string: %q, sep: %q)",
+			i, gotFound, found, tests[i].s, tests[i].sep)
+	}
+}
+
+func TestCutSuffix(t *testing.T) {
+	const luaFuncName = "CutSuffix"
+
+	L := setupLuaTest(t, luaFuncName)
+	defer L.Close()
+
+	tests := []struct {
+		s      string
+		suffix string
+	}{
+		{"", ""},
+		{"hello", ""},
+		{"", "hello"},
+		{"hello", "lo"},
+		{"hello", "hello"},
+		{"hello", "world"},
+		{"hello world", "world"},
+		{"你好世界", "世界"},
+		{"αβγδ", "γδ"},
+		{"hello\nworld", "\nworld"},
+		{"hello  ", "  "},
+		{"hello", "o"},
+		{"hello\u0000", "\u0000"},
+		{"hellosuffix", "suffix"},
+		{"hello", "HELLO"},
+		{"", "\u0000"},
+		{"hello\nhello", "hello"},
+		{"world!", "!"},
+		{"prefix", "prefix"},
+		{"hello你好", "你好"},
+	}
+
+	for i := range tests {
+		before, found := strings.CutSuffix(tests[i].s, tests[i].suffix)
+
+		args := []lua.LValue{
+			lua.LString(tests[i].s),
+			lua.LString(tests[i].suffix),
+		}
+
+		L.Push(L.GetGlobal(luaFuncName))
+		for _, arg := range args {
+			L.Push(arg)
+		}
+		L.Call(2, 1)
+
+		result := L.CheckTable(-1)
+		L.Pop(1)
+
+		gotBefore := result.RawGetString("before").String()
+		gotFound := bool(result.RawGetString("found").(lua.LBool))
+
+		require.Equal(t, before, gotBefore,
+			"case %d: Lua returned before=%q but Go returned before=%q (string: %q, suffix: %q)",
+			i, gotBefore, before, tests[i].s, tests[i].suffix)
+
+		require.Equal(t, found, gotFound,
+			"case %d: Lua returned found=%v but Go returned found=%v (string: %q, suffix: %q)",
+			i, gotFound, found, tests[i].s, tests[i].suffix)
 	}
 }
 
@@ -427,6 +743,8 @@ func TestFields(t *testing.T) {
 }
 
 func TestFieldsFunc(t *testing.T) {
+	const luaFuncName = "FieldsFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -613,12 +931,12 @@ func TestFieldsFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "FieldsFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.FieldsFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_FieldsFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 
@@ -846,6 +1164,8 @@ func TestIndexByte(t *testing.T) {
 }
 
 func TestIndexFunc(t *testing.T) {
+	const luaFuncName = "IndexFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -955,12 +1275,12 @@ func TestIndexFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "IndexFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.IndexFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_IndexFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 
@@ -1194,6 +1514,8 @@ func TestLastIndexByte(t *testing.T) {
 }
 
 func TestLastIndexFunc(t *testing.T) {
+	const luaFuncName = "LastIndexFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -1329,12 +1651,12 @@ func TestLastIndexFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "LastIndexFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.LastIndexFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_LastIndexFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 
@@ -1375,7 +1697,7 @@ func TestMap(t *testing.T) {
 					end
 					return r
 				end
-		    `,
+			`,
 			goFunc: func(r rune) rune {
 				if r > unicode.MaxRune {
 					panic("invalid rune")
@@ -1389,7 +1711,7 @@ func TestMap(t *testing.T) {
 				function(r)
 					return r
 				end
-		    `,
+			`,
 			goFunc: func(r rune) rune { return r },
 		},
 		{
@@ -1556,15 +1878,15 @@ func TestMap(t *testing.T) {
 
 			expected := strings.Map(tt.goFunc, tt.s)
 
-			// Create the mapping function
+			// create the mapping function
 			err := L.DoString("mapFunc = " + tt.luaFunc)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			// Call Map with 2 arguments and 1 return value
+			// call Map with 2 arguments and 1 return value
 			if err := L.CallByParam(lua.P{
-				Fn:      L.GetGlobal("Map"),
+				Fn:      L.GetGlobal(luaFuncName),
 				NRet:    1,
 				Protect: true,
 			}, L.GetGlobal("mapFunc"), lua.LString(tt.s)); err != nil {
@@ -1672,6 +1994,57 @@ func TestReplace(t *testing.T) {
 		require.Equal(t, expected, got,
 			"case %d: Lua returned %q but Go returned %q (string: %q, old: %q, new: %q, n: %d)",
 			i, got, expected, tests[i].s, tests[i].old, tests[i].new, tests[i].n)
+	}
+}
+
+func TestReplaceAll(t *testing.T) {
+	const luaFuncName = "ReplaceAll"
+
+	L := setupLuaTest(t, luaFuncName)
+	defer L.Close()
+
+	tests := []struct {
+		s   string
+		old string
+		new string
+	}{
+		{"", "", ""},
+		{"hello", "", "x"},
+		{"", "hello", "world"},
+		{"hello", "l", "L"},
+		{"hello hello", "hello", "hi"},
+		{"你好世界", "世界", "朋友"},
+		{"αβγαβγ", "αβ", "δε"},
+		{"hello\nworld", "\n", " "},
+		{"aaa", "a", "b"},
+		{"hello", "hello", ""},
+		{"hello", "e", "ee"},
+		{"hello", "l", ""},
+		{"\u0000hello\u0000", "\u0000", "x"},
+		{"...hello...", ".", "*"},
+		{"hello", "x", "y"},
+		{"hellohellohello", "hello", "hi"},
+		{"hello", "HELLO", "hi"},
+		{"世界世界", "世界", "你好"},
+		{"a b c", " ", "_"},
+		{"αα", "α", "β"},
+	}
+
+	for i := range tests {
+		expected := strings.ReplaceAll(tests[i].s, tests[i].old, tests[i].new)
+
+		args := []lua.LValue{
+			lua.LString(tests[i].s),
+			lua.LString(tests[i].old),
+			lua.LString(tests[i].new),
+		}
+		got := callLuaFunc(t, L, luaFuncName, args, func(L *lua.LState, idx int) string {
+			return L.ToString(idx)
+		})
+
+		require.Equal(t, expected, got,
+			"case %d: Lua returned %q but Go returned %q (string: %q, old: %q, new: %q)",
+			i, got, expected, tests[i].s, tests[i].old, tests[i].new)
 	}
 }
 
@@ -2087,6 +2460,8 @@ func TestTrim(t *testing.T) {
 }
 
 func TestTrimFunc(t *testing.T) {
+	const luaFuncName = "TrimFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -2223,12 +2598,12 @@ func TestTrimFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "TrimFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.TrimFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_TrimFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 
@@ -2287,6 +2662,8 @@ func TestTrimLeft(t *testing.T) {
 }
 
 func TestTrimLeftFunc(t *testing.T) {
+	const luaFuncName = "TrimLeftFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -2396,12 +2773,12 @@ func TestTrimLeftFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "TrimLeftFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.TrimLeftFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_TrimLeftFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 
@@ -2504,6 +2881,8 @@ func TestTrimRight(t *testing.T) {
 }
 
 func TestTrimRightFunc(t *testing.T) {
+	const luaFuncName = "TrimRightFunc"
+
 	tests := []struct {
 		s       string
 		luaFunc string
@@ -2627,12 +3006,12 @@ func TestTrimRightFunc(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("case=%d/string=%q", i, tt.s), func(t *testing.T) {
-			testL := setupLuaFuncTest(t, "TrimRightFunc", tt.luaFunc)
+			testL := setupLuaFuncTest(t, luaFuncName, tt.luaFunc)
 			defer testL.Close()
 
 			expected := strings.TrimRightFunc(tt.s, tt.goFunc)
 
-			testL.Push(testL.GetGlobal("test_TrimRightFunc"))
+			testL.Push(testL.GetGlobal("test_" + luaFuncName))
 			testL.Push(lua.LString(tt.s))
 			testL.Call(1, 1)
 

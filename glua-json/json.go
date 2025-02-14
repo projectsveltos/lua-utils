@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/yuin/gopher-lua"
+	lua "github.com/yuin/gopher-lua"
 )
 
 // Preload adds json to the given Lua state's package.preload table. After it
 // has been preloaded, it can be loaded using require:
 //
-//  local json = require("json")
+//	local json = require("json")
 func Preload(L *lua.LState) {
 	L.PreloadModule("json", Loader)
 }
@@ -20,6 +20,7 @@ func Loader(L *lua.LState) int {
 	t := L.NewTable()
 	L.SetFuncs(t, api)
 	L.Push(t)
+
 	return 1
 }
 
@@ -35,9 +36,12 @@ func apiDecode(L *lua.LState) int {
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
+
 		return 2
 	}
+
 	L.Push(value)
+
 	return 1
 }
 
@@ -48,9 +52,12 @@ func apiEncode(L *lua.LState) int {
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
+
 		return 2
 	}
+
 	L.Push(lua.LString(string(data)))
+
 	return 1
 }
 
@@ -93,6 +100,7 @@ func (j jsonValue) MarshalJSON() (data []byte, err error) {
 		if j.visited[converted] {
 			return nil, errNested
 		}
+
 		j.visited[converted] = true
 
 		key, value := converted.Next(lua.LNil)
@@ -103,30 +111,40 @@ func (j jsonValue) MarshalJSON() (data []byte, err error) {
 		case lua.LTNumber:
 			arr := make([]jsonValue, 0, converted.Len())
 			expectedKey := lua.LNumber(1)
+
 			for key != lua.LNil {
 				if key.Type() != lua.LTNumber {
 					err = errInvalidKeys
-					return
+
+					return data, err
 				}
+
 				if expectedKey != key {
 					err = errSparseArray
-					return
+
+					return data, err
 				}
+
 				arr = append(arr, jsonValue{value, j.visited})
 				expectedKey++
 				key, value = converted.Next(key)
 			}
+
 			data, err = json.Marshal(arr)
 		case lua.LTString:
 			obj := make(map[string]jsonValue)
+
 			for key != lua.LNil {
 				if key.Type() != lua.LTString {
 					err = errInvalidKeys
-					return
+
+					return data, err
 				}
+
 				obj[key.String()] = jsonValue{value, j.visited}
 				key, value = converted.Next(key)
 			}
+
 			data, err = json.Marshal(obj)
 		default:
 			err = errInvalidKeys
@@ -134,16 +152,19 @@ func (j jsonValue) MarshalJSON() (data []byte, err error) {
 	default:
 		err = invalidTypeError(j.LValue.Type())
 	}
-	return
+
+	return data, err
 }
 
 // Decode converts the JSON encoded data to Lua values.
 func Decode(L *lua.LState, data []byte) (lua.LValue, error) {
-	var value interface{}
+	var value any
+
 	err := json.Unmarshal(data, &value)
 	if err != nil {
 		return nil, err
 	}
+
 	return DecodeValue(L, value), nil
 }
 
@@ -151,7 +172,7 @@ func Decode(L *lua.LState, data []byte) (lua.LValue, error) {
 //
 // This function only converts values that the encoding/json package decodes to.
 // All other values will return lua.LNil.
-func DecodeValue(L *lua.LState, value interface{}) lua.LValue {
+func DecodeValue(L *lua.LState, value any) lua.LValue {
 	switch converted := value.(type) {
 	case bool:
 		return lua.LBool(converted)
@@ -161,17 +182,19 @@ func DecodeValue(L *lua.LState, value interface{}) lua.LValue {
 		return lua.LString(converted)
 	case json.Number:
 		return lua.LString(converted)
-	case []interface{}:
+	case []any:
 		arr := L.CreateTable(len(converted), 0)
 		for _, item := range converted {
 			arr.Append(DecodeValue(L, item))
 		}
+
 		return arr
-	case map[string]interface{}:
+	case map[string]any:
 		tbl := L.CreateTable(0, len(converted))
 		for key, item := range converted {
 			tbl.RawSetH(lua.LString(key), DecodeValue(L, item))
 		}
+
 		return tbl
 	case nil:
 		return lua.LNil

@@ -1,10 +1,11 @@
-package json
+package json_test
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/yuin/gopher-lua"
+	luajson "github.com/projectsveltos/lua-utils/glua-json"
+	lua "github.com/yuin/gopher-lua"
 )
 
 func TestSimple(t *testing.T) {
@@ -63,10 +64,12 @@ func TestSimple(t *testing.T) {
 	end
 	assert(json.encode(a) == "[1,2,3,4,5]")
 	`
+
 	s := lua.NewState()
 	defer s.Close()
 
-	Preload(s)
+	luajson.Preload(s)
+
 	if err := s.DoString(str); err != nil {
 		t.Error(err)
 	}
@@ -79,10 +82,12 @@ func TestCustomRequire(t *testing.T) {
 	assert(type(j.decode) == "function")
 	assert(type(j.encode) == "function")
 	`
+
 	s := lua.NewState()
 	defer s.Close()
 
-	s.PreloadModule("JSON", Loader)
+	s.PreloadModule("JSON", luajson.Loader)
+
 	if err := s.DoString(str); err != nil {
 		t.Error(err)
 	}
@@ -92,7 +97,7 @@ func TestDecodeValue_jsonNumber(t *testing.T) {
 	s := lua.NewState()
 	defer s.Close()
 
-	v := DecodeValue(s, json.Number("124.11"))
+	v := luajson.DecodeValue(s, json.Number("124.11"))
 	if v.Type() != lua.LTString || v.String() != "124.11" {
 		t.Fatalf("expecting LString, got %T", v)
 	}

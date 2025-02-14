@@ -15,3 +15,11 @@ With some small code helpers taken out of [github.com/chai2010/glua-helper](gith
 
 The original license and attribution have been preserved in their entirety.
 All credit for the original code belongs to the original authors.
+
+## `glua-json`
+
+Contains a fork of [https://github.com/layeh/gopher-json](https://github.com/layeh/gopher-json).
+This fork was created due to the original project being unmaintained.
+
+The original license and attribution have been preserved in their entirety.
+All credit for the original code belongs to the original authors.

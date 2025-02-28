@@ -3864,7 +3864,7 @@ func TestSubstrFunc(t *testing.T) {
 			start:    -5,
 			end:      11,
 			input:    "hello world",
-			expected: "world",
+			expected: "hello world",
 		},
 		{
 			start:    0,

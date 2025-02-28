@@ -1,7 +1,20 @@
 package gluasprig
 
 import (
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base32"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"hash/adler32"
+	"math/rand"
+	"path"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"time"
 
 	sprig "github.com/Masterminds/sprig/v3"
 	lua "github.com/yuin/gopher-lua"
@@ -92,43 +105,25 @@ func AbbrevbothFunc(L *lua.LState) int {
 	return 1
 }
 
-// Adler32sumFunc wraps the sprig.adler32sum function.
+// Adler32sumFunc implements the sprig.adler32sum function.
 func Adler32sumFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("adler32sum: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "adler32sum requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["adler32sum"].(func(string) string)
-	if !ok {
-		L.RaiseError("adler32sum: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	hash := adler32.Checksum([]byte(param0))
+	result := fmt.Sprintf("%d", hash)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// AgoFunc wraps the sprig.ago function.
+// AgoFunc implements the sprig.ago function.
 func AgoFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("ago: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "ago requires 1 argument")
 
@@ -141,15 +136,10 @@ func AgoFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["ago"].(func(any) string)
-	if !ok {
-		L.RaiseError("ago: invalid function assertion")
-
-		return 0
-	}
-
 	timestamp := int64(L.CheckNumber(1))
-	result := fn(timestamp)
+	t := time.Unix(timestamp, 0)
+	duration := time.Since(t).Round(time.Second)
+	result := duration.String()
 
 	L.Push(lua.LString(result))
 
@@ -158,12 +148,6 @@ func AgoFunc(L *lua.LState) int {
 
 // AllFunc implements the sprig.all function.
 func AllFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("all: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "all requires 1 arguments")
 
@@ -186,12 +170,6 @@ func AllFunc(L *lua.LState) int {
 
 // AnyFunc implements the sprig.any function.
 func AnyFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("any: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "any requires 1 arguments")
 
@@ -212,145 +190,92 @@ func AnyFunc(L *lua.LState) int {
 	return 1
 }
 
-// B32decFunc wraps the sprig.b32dec function.
+// B32decFunc implements the sprig.b32dec function.
 func B32decFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("b32dec: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "b32dec requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["b32dec"].(func(string) string)
-	if !ok {
-		L.RaiseError("b32dec: invalid function assertion")
+	param0 := L.CheckString(1)
+
+	data, err := base32.StdEncoding.DecodeString(param0)
+	if err != nil {
+		L.RaiseError("b32dec: %v", err)
 
 		return 0
 	}
 
-	param0 := L.CheckString(1)
-	result := fn(param0)
-
-	L.Push(lua.LString(result))
+	L.Push(lua.LString(string(data)))
 
 	return 1
 }
 
-// B32encFunc wraps the sprig.b32enc function.
+// B32encFunc implements the sprig.b32enc function.
 func B32encFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("b32enc: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "b32enc requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["b32enc"].(func(string) string)
-	if !ok {
-		L.RaiseError("b32enc: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := base32.StdEncoding.EncodeToString([]byte(param0))
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// B64decFunc wraps the sprig.b64dec function.
+// B64decFunc implements the sprig.b64dec function.
 func B64decFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("b64dec: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "b64dec requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["b64dec"].(func(string) string)
-	if !ok {
-		L.RaiseError("b64dec: invalid function assertion")
+	param0 := L.CheckString(1)
+
+	data, err := base64.StdEncoding.DecodeString(param0)
+	if err != nil {
+		L.RaiseError("b64dec: %v", err)
 
 		return 0
 	}
 
-	param0 := L.CheckString(1)
-	result := fn(param0)
-
-	L.Push(lua.LString(result))
+	L.Push(lua.LString(string(data)))
 
 	return 1
 }
 
-// B64encFunc wraps the sprig.b64enc function.
+// B64encFunc implements the sprig.b64enc function.
 func B64encFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("b64enc: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "b64enc requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["b64enc"].(func(string) string)
-	if !ok {
-		L.RaiseError("b64enc: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := base64.StdEncoding.EncodeToString([]byte(param0))
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// BaseFunc wraps the sprig.base function.
+// BaseFunc implements the sprig.base function.
 func BaseFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("base: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "base requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["base"].(func(string) string)
-	if !ok {
-		L.RaiseError("base: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := path.Base(param0)
 
 	L.Push(lua.LString(result))
 
@@ -371,7 +296,7 @@ func BcryptFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["bcrypt"].(func(string) string)
+	fn, ok := sprig.FuncMap()["bcrypt"].(func(string) string) // consider using "golang.org/x/crypto/bcrypt"
 	if !ok {
 		L.RaiseError("bcrypt: invalid function assertion")
 
@@ -400,7 +325,7 @@ func CamelcaseFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["camelcase"].(func(string) string)
+	fn, ok := sprig.FuncMap()["camelcase"].(func(string) string) // consider using "github.com/huandu/xstrings"
 	if !ok {
 		L.RaiseError("camelcase: invalid function assertion")
 
@@ -449,29 +374,16 @@ func CatFunc(L *lua.LState) int {
 	return 1
 }
 
-// CleanFunc wraps the sprig.clean function.
+// CleanFunc implements the sprig.clean function.
 func CleanFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("clean: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "clean requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["clean"].(func(string) string)
-	if !ok {
-		L.RaiseError("clean: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := path.Clean(param0)
 
 	L.Push(lua.LString(result))
 
@@ -480,12 +392,6 @@ func CleanFunc(L *lua.LState) int {
 
 // CoalesceFunc implements the sprig.coalesce function.
 func CoalesceFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("coalesce: %v", r)
-		}
-	}()
-
 	top := L.GetTop()
 	if top < 1 {
 		L.ArgError(1, "coalesce requires at least 1 argument")
@@ -510,12 +416,6 @@ func CoalesceFunc(L *lua.LState) int {
 
 // CompactFunc implements the sprig.compact function.
 func CompactFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("compact: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "compact requires 1 argument")
 
@@ -611,69 +511,43 @@ func DerivePasswordFunc(L *lua.LState) int {
 	return 1
 }
 
-// DirFunc wraps the sprig.dir function.
+// DirFunc implements the sprig.dir function.
 func DirFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("dir: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "dir requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["dir"].(func(string) string)
-	if !ok {
-		L.RaiseError("dir: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := path.Dir(param0)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// DurationFunc wraps the sprig.duration function.
+// DurationFunc implements the sprig.duration function.
 func DurationFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("duration: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "duration requires 1 argument")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["duration"].(func(any) string)
-	if !ok {
-		L.RaiseError("duration: invalid function assertion")
-
-		return 0
-	}
-
-	var param any
+	var n int64
 	switch L.Get(1).Type() {
 	case lua.LTNumber:
-		param = int64(L.CheckNumber(1))
+		n = int64(L.CheckNumber(1))
 	case lua.LTString:
-		param = L.CheckString(1)
+		n, _ = strconv.ParseInt(L.CheckString(1), 10, 64)
 	case lua.LTNil:
-		param = int64(0)
+		n = 0
 	default:
-		param = L.Get(1).String()
+		n, _ = strconv.ParseInt(L.Get(1).String(), 10, 64)
 	}
 
-	result := fn(param)
+	result := (time.Duration(n) * time.Second).String()
 
 	L.Push(lua.LString(result))
 
@@ -722,12 +596,6 @@ func DurationRoundFunc(L *lua.LState) int {
 
 // EmptyFunc implements the sprig.empty function.
 func EmptyFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("empty: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "empty requires 1 argument")
 
@@ -780,29 +648,16 @@ func EncryptAESFunc(L *lua.LState) int {
 	return 2
 }
 
-// ExtFunc wraps the sprig.ext function.
+// ExtFunc implements the sprig.ext function.
 func ExtFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("ext: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "ext requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["ext"].(func(string) string)
-	if !ok {
-		L.RaiseError("ext: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := path.Ext(param0)
 
 	L.Push(lua.LString(result))
 
@@ -912,7 +767,7 @@ func InitialsFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["initials"].(func(string) string)
+	fn, ok := sprig.FuncMap()["initials"].(func(string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("initials: invalid function assertion")
 
@@ -927,29 +782,16 @@ func InitialsFunc(L *lua.LState) int {
 	return 1
 }
 
-// IsAbsFunc wraps the sprig.isAbs function.
+// IsAbsFunc implements the sprig.isAbs function.
 func IsAbsFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("isAbs: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "isAbs requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["isAbs"].(func(string) bool)
-	if !ok {
-		L.RaiseError("isAbs: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := path.IsAbs(param0)
 
 	L.Push(lua.LBool(result))
 
@@ -970,7 +812,7 @@ func KebabcaseFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["kebabcase"].(func(string) string)
+	fn, ok := sprig.FuncMap()["kebabcase"].(func(string) string) // consider using "github.com/huandu/xstrings"
 	if !ok {
 		L.RaiseError("kebabcase: invalid function assertion")
 
@@ -1029,7 +871,7 @@ func NospaceFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["nospace"].(func(string) string)
+	fn, ok := sprig.FuncMap()["nospace"].(func(string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("nospace: invalid function assertion")
 
@@ -1044,145 +886,80 @@ func NospaceFunc(L *lua.LState) int {
 	return 1
 }
 
-// OsBaseFunc wraps the sprig.osBase function.
+// OsBaseFunc implements the sprig.osBase function.
 func OsBaseFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("osBase: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "osBase requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["osBase"].(func(string) string)
-	if !ok {
-		L.RaiseError("osBase: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := filepath.Base(param0)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// OsCleanFunc wraps the sprig.osClean function.
+// OsCleanFunc implements the sprig.osClean function.
 func OsCleanFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("osClean: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "osClean requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["osClean"].(func(string) string)
-	if !ok {
-		L.RaiseError("osClean: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := filepath.Clean(param0)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// OsDirFunc wraps the sprig.osDir function.
+// OsDirFunc implements the sprig.osDir function.
 func OsDirFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("osDir: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "osDir requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["osDir"].(func(string) string)
-	if !ok {
-		L.RaiseError("osDir: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := filepath.Dir(param0)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// OsExtFunc wraps the sprig.osExt function.
+// OsExtFunc implements the sprig.osExt function.
 func OsExtFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("osExt: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "osExt requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["osExt"].(func(string) string)
-	if !ok {
-		L.RaiseError("osExt: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := filepath.Ext(param0)
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// OsIsAbsFunc wraps the sprig.osIsAbs function.
+// OsIsAbsFunc implements the sprig.osIsAbs function.
 func OsIsAbsFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("osIsAbs: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "osIsAbs requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["osIsAbs"].(func(string) bool)
-	if !ok {
-		L.RaiseError("osIsAbs: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	result := filepath.IsAbs(param0)
 
 	L.Push(lua.LBool(result))
 
@@ -1191,12 +968,6 @@ func OsIsAbsFunc(L *lua.LState) int {
 
 // PluralFunc implements the sprig.plural function.
 func PluralFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("plural: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
 		L.ArgError(1, "plural requires 3 arguments: singular, plural, count")
 
@@ -1275,23 +1046,10 @@ func QuoteFunc(L *lua.LState) int {
 	return 1
 }
 
-// RandIntFunc wraps the sprig.randInt function.
+// RandIntFunc implements the sprig.randInt function.
 func RandIntFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("randInt: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 2 {
 		L.ArgError(1, "randInt requires 2 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["randInt"].(func(int, int) int)
-	if !ok {
-		L.RaiseError("randInt: invalid function assertion")
 
 		return 0
 	}
@@ -1299,7 +1057,7 @@ func RandIntFunc(L *lua.LState) int {
 	min := int(L.CheckNumber(1))
 	max := int(L.CheckNumber(2))
 
-	if min == max {
+	if (min == max) || (max <= min) {
 		L.Push(lua.LNumber(min))
 
 		return 1
@@ -1309,30 +1067,17 @@ func RandIntFunc(L *lua.LState) int {
 		min, max = max, min
 	}
 
-	result := fn(min, max)
+	result := rand.Intn(max-min) + min
 
 	L.Push(lua.LNumber(result))
 
 	return 1
 }
 
-// RegexFindAllFunc wraps the sprig.mustRegexFindAll function.
+// RegexFindAllFunc implements the sprig.mustRegexFindAll function.
 func RegexFindAllFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexFindAll: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexFindAll requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexFindAll"].(func(string, string, int) ([]string, error))
-	if !ok {
-		L.RaiseError("mustRegexFindAll: invalid function assertion")
+		L.ArgError(1, "regexFindAll requires 3 arguments")
 
 		return 0
 	}
@@ -1341,13 +1086,15 @@ func RegexFindAllFunc(L *lua.LState) int {
 	param1 := L.CheckString(2)
 	param2 := int(L.CheckNumber(3))
 
-	result, err := fn(param0, param1, param2)
+	r, err := regexp.Compile(param0)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
 
 		return 2
 	}
+
+	result := r.FindAllString(param1, param2)
 
 	resultTable := L.CreateTable(len(result), 0)
 	for i, v := range result {
@@ -1360,23 +1107,10 @@ func RegexFindAllFunc(L *lua.LState) int {
 	return 2
 }
 
-// RegexFindFunc wraps the sprig.mustRegexFind function.
+// RegexFindFunc implements the sprig.mustRegexFind function.
 func RegexFindFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexFind: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 2 {
-		L.ArgError(1, "mustRegexFind requires 2 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexFind"].(func(string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexFind: invalid function assertion")
+		L.ArgError(1, "regexFind requires 2 arguments")
 
 		return 0
 	}
@@ -1384,7 +1118,7 @@ func RegexFindFunc(L *lua.LState) int {
 	param0 := L.CheckString(1)
 	param1 := L.CheckString(2)
 
-	result, err := fn(param0, param1)
+	r, err := regexp.Compile(param0)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
@@ -1392,29 +1126,18 @@ func RegexFindFunc(L *lua.LState) int {
 		return 2
 	}
 
+	result := r.FindString(param1)
+
 	L.Push(lua.LString(result))
 	L.Push(lua.LNil)
 
 	return 2
 }
 
-// RegexMatchFunc wraps the sprig.mustRegexMatch function.
+// RegexMatchFunc implements the sprig.mustRegexMatch function.
 func RegexMatchFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexMatch: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 2 {
-		L.ArgError(1, "mustRegexMatch requires 2 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexMatch"].(func(string, string) (bool, error))
-	if !ok {
-		L.RaiseError("mustRegexMatch: invalid function assertion")
+		L.ArgError(1, "regexMatch requires 2 arguments")
 
 		return 0
 	}
@@ -1422,7 +1145,7 @@ func RegexMatchFunc(L *lua.LState) int {
 	param0 := L.CheckString(1)
 	param1 := L.CheckString(2)
 
-	result, err := fn(param0, param1)
+	result, err := regexp.MatchString(param0, param1)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
@@ -1436,23 +1159,10 @@ func RegexMatchFunc(L *lua.LState) int {
 	return 2
 }
 
-// RegexReplaceAllFunc wraps the sprig.mustRegexReplaceAll function.
+// RegexReplaceAllFunc implements the sprig.mustRegexReplaceAll function.
 func RegexReplaceAllFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexReplaceAll: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexReplaceAll requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexReplaceAll"].(func(string, string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexReplaceAll: invalid function assertion")
+		L.ArgError(1, "regexReplaceAll requires 3 arguments")
 
 		return 0
 	}
@@ -1461,7 +1171,7 @@ func RegexReplaceAllFunc(L *lua.LState) int {
 	param1 := L.CheckString(2)
 	param2 := L.CheckString(3)
 
-	result, err := fn(param0, param1, param2)
+	r, err := regexp.Compile(param0)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
@@ -1469,29 +1179,18 @@ func RegexReplaceAllFunc(L *lua.LState) int {
 		return 2
 	}
 
+	result := r.ReplaceAllString(param1, param2)
+
 	L.Push(lua.LString(result))
 	L.Push(lua.LNil)
 
 	return 2
 }
 
-// RegexReplaceAllLiteralFunc wraps the sprig.mustRegexReplaceAllLiteral function.
+// RegexReplaceAllLiteralFunc implements the sprig.mustRegexReplaceAllLiteral function.
 func RegexReplaceAllLiteralFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexReplaceAllLiteral: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexReplaceAllLiteral requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexReplaceAllLiteral"].(func(string, string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexReplaceAllLiteral: invalid function assertion")
+		L.ArgError(1, "regexReplaceAllLiteral requires 3 arguments")
 
 		return 0
 	}
@@ -1500,7 +1199,7 @@ func RegexReplaceAllLiteralFunc(L *lua.LState) int {
 	param1 := L.CheckString(2)
 	param2 := L.CheckString(3)
 
-	result, err := fn(param0, param1, param2)
+	r, err := regexp.Compile(param0)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
@@ -1508,29 +1207,18 @@ func RegexReplaceAllLiteralFunc(L *lua.LState) int {
 		return 2
 	}
 
+	result := r.ReplaceAllLiteralString(param1, param2)
+
 	L.Push(lua.LString(result))
 	L.Push(lua.LNil)
 
 	return 2
 }
 
-// RegexSplitFunc wraps the sprig.mustRegexSplit function.
+// RegexSplitFunc implements the sprig.mustRegexSplit function.
 func RegexSplitFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexSplit: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
 		L.ArgError(1, "mustRegexSplit requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexSplit"].(func(string, string, int) ([]string, error))
-	if !ok {
-		L.RaiseError("mustRegexSplit: invalid function assertion")
 
 		return 0
 	}
@@ -1539,13 +1227,15 @@ func RegexSplitFunc(L *lua.LState) int {
 	param1 := L.CheckString(2)
 	param2 := int(L.CheckNumber(3))
 
-	result, err := fn(param0, param1, param2)
+	r, err := regexp.Compile(param0)
 	if err != nil {
 		L.Push(lua.LNil)
 		L.Push(lua.LString(err.Error()))
 
 		return 2
 	}
+
+	result := r.Split(param1, param2)
 
 	resultTable := L.CreateTable(len(result), 0)
 	for i, v := range result {
@@ -1674,87 +1364,51 @@ func SeqFunc(L *lua.LState) int {
 	return 1
 }
 
-// Sha1sumFunc wraps the sprig.sha1sum function.
+// Sha1sumFunc implements the sprig.sha1sum function.
 func Sha1sumFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("sha1sum: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "sha1sum requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["sha1sum"].(func(string) string)
-	if !ok {
-		L.RaiseError("sha1sum: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	hash := sha1.Sum([]byte(param0))
+	result := hex.EncodeToString(hash[:])
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// Sha256sumFunc wraps the sprig.sha256sum function.
+// Sha256sumFunc implements the sprig.sha256sum function.
 func Sha256sumFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("sha256sum: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "sha256sum requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["sha256sum"].(func(string) string)
-	if !ok {
-		L.RaiseError("sha256sum: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	hash := sha256.Sum256([]byte(param0))
+	result := hex.EncodeToString(hash[:])
 
 	L.Push(lua.LString(result))
 
 	return 1
 }
 
-// Sha512sumFunc wraps the sprig.sha512sum function.
+// Sha512sumFunc implements the sprig.sha512sum function.
 func Sha512sumFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("sha512sum: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "sha512sum requires 1 arguments")
 
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["sha512sum"].(func(string) string)
-	if !ok {
-		L.RaiseError("sha512sum: invalid function assertion")
-
-		return 0
-	}
-
 	param0 := L.CheckString(1)
-	result := fn(param0)
+	hash := sha512.Sum512([]byte(param0))
+	result := hex.EncodeToString(hash[:])
 
 	L.Push(lua.LString(result))
 
@@ -1775,7 +1429,7 @@ func ShuffleFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["shuffle"].(func(string) string)
+	fn, ok := sprig.FuncMap()["shuffle"].(func(string) string) // consider using "github.com/huandu/xstrings"
 	if !ok {
 		L.RaiseError("shuffle: invalid function assertion")
 
@@ -1804,7 +1458,7 @@ func SnakecaseFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["snakecase"].(func(string) string)
+	fn, ok := sprig.FuncMap()["snakecase"].(func(string) string) // consider using "github.com/huandu/xstrings"
 	if !ok {
 		L.RaiseError("snakecase: invalid function assertion")
 
@@ -1949,12 +1603,7 @@ func SubstrFunc(L *lua.LState) int {
 	end := int(L.CheckNumber(2))
 	str := L.CheckString(3)
 
-	runes := []rune(str)
-	length := len(runes)
-
-	if start < 0 {
-		start = length + start
-	}
+	length := len(str)
 
 	if start < 0 {
 		start = 0
@@ -1991,7 +1640,7 @@ func SwapcaseFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["swapcase"].(func(string) string)
+	fn, ok := sprig.FuncMap()["swapcase"].(func(string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("swapcase: invalid function assertion")
 
@@ -2008,12 +1657,6 @@ func SwapcaseFunc(L *lua.LState) int {
 
 // TernaryFunc implements the sprig.ternary function.
 func TernaryFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("ternary: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 3 {
 		L.ArgError(1, "ternary requires 3 arguments")
 
@@ -2034,23 +1677,10 @@ func TernaryFunc(L *lua.LState) int {
 	return 1
 }
 
-// ToDecimalFunc wraps the sprig.toDecimal function.
+// ToDecimalFunc implements the sprig.toDecimal function.
 func ToDecimalFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("toDecimal: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "toDecimal requires 1 argument")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["toDecimal"].(func(any) int64)
-	if !ok {
-		L.RaiseError("toDecimal: invalid function assertion")
 
 		return 0
 	}
@@ -2074,7 +1704,10 @@ func ToDecimalFunc(L *lua.LState) int {
 		param = L.Get(1).String()
 	}
 
-	result := fn(param)
+	result, err := strconv.ParseInt(param, 8, 64)
+	if err != nil {
+		result = 0
+	}
 
 	L.Push(lua.LNumber(result))
 
@@ -2113,12 +1746,6 @@ func TruncFunc(L *lua.LState) int {
 
 // UniqFunc implements the sprig.uniq function.
 func UniqFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("uniq: %v", r)
-		}
-	}()
-
 	if L.GetTop() < 1 {
 		L.ArgError(1, "uniq requires 1 argument")
 
@@ -2175,7 +1802,7 @@ func UntitleFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["untitle"].(func(string) string)
+	fn, ok := sprig.FuncMap()["untitle"].(func(string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("untitle: invalid function assertion")
 
@@ -2280,7 +1907,7 @@ func WrapFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["wrap"].(func(int, string) string)
+	fn, ok := sprig.FuncMap()["wrap"].(func(int, string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("wrap: invalid function assertion")
 
@@ -2310,7 +1937,7 @@ func WrapWithFunc(L *lua.LState) int {
 		return 0
 	}
 
-	fn, ok := sprig.FuncMap()["wrapWith"].(func(int, string, string) string)
+	fn, ok := sprig.FuncMap()["wrapWith"].(func(int, string, string) string) // consider using "github.com/Masterminds/goutils"
 	if !ok {
 		L.RaiseError("wrapWith: invalid function assertion")
 

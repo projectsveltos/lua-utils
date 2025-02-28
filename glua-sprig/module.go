@@ -27,11 +27,20 @@ func isEmptyLuaValue(value lua.LValue) bool {
 	case lua.LTBool:
 		return value == lua.LFalse
 	case lua.LTNumber:
-		return float64(value.(lua.LNumber)) == 0
+		v, ok := value.(lua.LNumber)
+		if !ok {
+			panic("error asserting to lua.LNumber")
+		}
+
+		return float64(v) == 0
 	case lua.LTString:
-		return len(value.String()) == 0
+		return value.String() == ""
 	case lua.LTTable:
-		tbl := value.(*lua.LTable)
+		tbl, ok := value.(*lua.LTable)
+		if !ok {
+			panic("error asserting to *lua.LTable")
+		}
+
 		isEmpty := true
 
 		tbl.ForEach(func(_, _ lua.LValue) {
@@ -115,7 +124,7 @@ func Adler32sumFunc(L *lua.LState) int {
 
 	param0 := L.CheckString(1)
 	hash := adler32.Checksum([]byte(param0))
-	result := fmt.Sprintf("%d", hash)
+	result := strconv.FormatUint(uint64(hash), 10)
 
 	L.Push(lua.LString(result))
 
@@ -202,14 +211,16 @@ func B32decFunc(L *lua.LState) int {
 
 	data, err := base32.StdEncoding.DecodeString(param0)
 	if err != nil {
-		L.RaiseError("b32dec: %v", err)
+		L.Push(lua.LNil)
+		L.Push(lua.LString(fmt.Sprintf("b32dec: %v", err)))
 
-		return 0
+		return 2
 	}
 
 	L.Push(lua.LString(string(data)))
+	L.Push(lua.LNil)
 
-	return 1
+	return 2
 }
 
 // B32encFunc implements the sprig.b32enc function.
@@ -240,14 +251,16 @@ func B64decFunc(L *lua.LState) int {
 
 	data, err := base64.StdEncoding.DecodeString(param0)
 	if err != nil {
-		L.RaiseError("b64dec: %v", err)
+		L.Push(lua.LNil)
+		L.Push(lua.LString(fmt.Sprintf("b64dec: %v", err)))
 
-		return 0
+		return 2
 	}
 
 	L.Push(lua.LString(string(data)))
+	L.Push(lua.LNil)
 
-	return 1
+	return 2
 }
 
 // B64encFunc implements the sprig.b64enc function.
@@ -536,6 +549,7 @@ func DurationFunc(L *lua.LState) int {
 	}
 
 	var n int64
+
 	switch L.Get(1).Type() {
 	case lua.LTNumber:
 		n = int64(L.CheckNumber(1))
@@ -576,6 +590,7 @@ func DurationRoundFunc(L *lua.LState) int {
 	}
 
 	var param string
+
 	switch L.Get(1).Type() {
 	case lua.LTNumber:
 		param = fmt.Sprintf("%d%s", int64(L.CheckNumber(1)), "s")
@@ -978,7 +993,8 @@ func PluralFunc(L *lua.LState) int {
 	plural := L.CheckString(2)
 	count := int(L.CheckNumber(3))
 
-	result := ""
+	var result string
+
 	if count == 1 {
 		result = singular
 	} else {
@@ -1020,18 +1036,35 @@ func QuoteFunc(L *lua.LState) int {
 		}
 
 		var val any
+
 		switch v.Type() {
 		case lua.LTString:
-			val = string(v.(lua.LString))
+			ls, ok := v.(lua.LString)
+			if !ok {
+				panic("error asserting to lua.LString")
+			}
+
+			val = ls.String()
 		case lua.LTNumber:
-			num := float64(v.(lua.LNumber))
+			ln, ok := v.(lua.LNumber)
+			if !ok {
+				panic("error asserting to lua.LNumber")
+			}
+
+			num := float64(ln)
+
 			if num == float64(int(num)) {
 				val = int(num)
 			} else {
 				val = num
 			}
 		case lua.LTBool:
-			val = bool(v.(lua.LBool))
+			lb, ok := v.(lua.LBool)
+			if !ok {
+				panic("error asserting to lua.LBool")
+			}
+
+			val = bool(lb)
 		default:
 			val = v.String()
 		}
@@ -1054,20 +1087,20 @@ func RandIntFunc(L *lua.LState) int {
 		return 0
 	}
 
-	min := int(L.CheckNumber(1))
-	max := int(L.CheckNumber(2))
+	minVal := int(L.CheckNumber(1))
+	maxVal := int(L.CheckNumber(2))
 
-	if (min == max) || (max <= min) {
-		L.Push(lua.LNumber(min))
+	if (minVal == maxVal) || (maxVal <= minVal) {
+		L.Push(lua.LNumber(minVal))
 
 		return 1
 	}
 
-	if min > max {
-		min, max = max, min
+	if minVal > maxVal {
+		minVal, maxVal = maxVal, minVal
 	}
 
-	result := rand.Intn(max-min) + min
+	result := rand.Intn(maxVal-minVal) + minVal
 
 	L.Push(lua.LNumber(result))
 
@@ -1263,9 +1296,15 @@ func RoundFunc(L *lua.LState) int {
 		return 0
 	}
 
-	roundFn := sprig.FuncMap()["round"]
+	fn, ok := sprig.FuncMap()["round"].(func(any, int, ...float64) float64)
+	if !ok {
+		L.RaiseError("round: invalid function assertion")
+
+		return 0
+	}
 
 	var value any
+
 	switch L.Get(1).Type() {
 	case lua.LTNumber:
 		value = float64(L.CheckNumber(1))
@@ -1278,10 +1317,11 @@ func RoundFunc(L *lua.LState) int {
 	precision := int(L.CheckNumber(2))
 
 	var result float64
+
 	if top >= 3 {
-		result = roundFn.(func(any, int, ...float64) float64)(value, precision, float64(L.CheckNumber(3)))
+		result = fn(value, precision, float64(L.CheckNumber(3)))
 	} else {
-		result = roundFn.(func(any, int, ...float64) float64)(value, precision)
+		result = fn(value, precision)
 	}
 
 	L.Push(lua.LNumber(result))
@@ -1557,15 +1597,25 @@ func SquoteFunc(L *lua.LState) int {
 		case lua.LTString:
 			params = append(params, v.String())
 		case lua.LTNumber:
-			num := float64(v.(lua.LNumber))
+			ln, ok := v.(lua.LNumber)
+			if !ok {
+				panic("error asserting to lua.LNumber")
+			}
+
+			num := float64(ln)
 
 			if num == float64(int(num)) {
-				params = append(params, fmt.Sprintf("%d", int(num)))
+				params = append(params, strconv.Itoa(int(num)))
 			} else {
 				params = append(params, fmt.Sprintf("%v", num))
 			}
 		case lua.LTBool:
-			params = append(params, fmt.Sprintf("%v", bool(v.(lua.LBool))))
+			lb, ok := v.(lua.LBool)
+			if !ok {
+				panic("error asserting to lua.LBool")
+			}
+
+			params = append(params, strconv.FormatBool(bool(lb)))
 		default:
 			params = append(params, v.String())
 		}
@@ -1691,7 +1741,7 @@ func ToDecimalFunc(L *lua.LState) int {
 	case lua.LTString:
 		param = L.CheckString(1)
 	case lua.LTNumber:
-		param = fmt.Sprintf("%v", L.CheckNumber(1))
+		param = L.CheckNumber(1).String()
 	case lua.LTBool:
 		if L.CheckBool(1) {
 			param = "1"
@@ -1764,9 +1814,9 @@ func UniqFunc(L *lua.LState) int {
 		case lua.LTString:
 			key = v.String()
 		case lua.LTNumber:
-			key = fmt.Sprintf("%v", v)
+			key = v.String()
 		case lua.LTBool:
-			key = fmt.Sprintf("%v", v)
+			key = v.String()
 		case lua.LTNil:
 			key = "nil"
 		case lua.LTTable:
@@ -1779,6 +1829,7 @@ func UniqFunc(L *lua.LState) int {
 			seen[key] = true
 
 			uniqueTable.RawSetInt(i, v)
+
 			i++
 		}
 	})
@@ -1817,8 +1868,8 @@ func UntitleFunc(L *lua.LState) int {
 	return 1
 }
 
-// UrlJoinFunc wraps the sprig.urlJoin function.
-func UrlJoinFunc(L *lua.LState) int {
+// URLJoinFunc wraps the sprig.urlJoin function.
+func URLJoinFunc(L *lua.LState) int {
 	defer func() {
 		if r := recover(); r != nil {
 			L.RaiseError("urlJoin: %v", r)
@@ -1841,6 +1892,7 @@ func UrlJoinFunc(L *lua.LState) int {
 	tbl := L.CheckTable(1)
 
 	param := make(map[string]any)
+
 	tbl.ForEach(func(k, v lua.LValue) {
 		if ks, ok := k.(lua.LString); ok {
 			param[string(ks)] = v.String()
@@ -1854,8 +1906,8 @@ func UrlJoinFunc(L *lua.LState) int {
 	return 1
 }
 
-// UrlParseFunc wraps the sprig.urlParse function.
-func UrlParseFunc(L *lua.LState) int {
+// URLParseFunc wraps the sprig.urlParse function.
+func URLParseFunc(L *lua.LState) int {
 	defer func() {
 		if r := recover(); r != nil {
 			L.RaiseError("urlParse: %v", r)
@@ -2022,8 +2074,8 @@ func Loader(L *lua.LState) int {
 		"trunc":                  TruncFunc,
 		"uniq":                   UniqFunc,
 		"untitle":                UntitleFunc,
-		"urlJoin":                UrlJoinFunc,
-		"urlParse":               UrlParseFunc,
+		"urlJoin":                URLJoinFunc,
+		"urlParse":               URLParseFunc,
 		"wrap":                   WrapFunc,
 		"wrapWith":               WrapWithFunc,
 	})

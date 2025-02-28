@@ -270,19 +270,19 @@ func TestAllFunc(t *testing.T) {
 				case bool:
 					luaValue = lua.LBool(v)
 				case []int:
-					tbl := L.CreateTable(len(v), 0)
+					innertbl := L.CreateTable(len(v), 0)
 					for _, val := range v {
-						tbl.Append(lua.LNumber(val))
+						innertbl.Append(lua.LNumber(val))
 					}
 
-					luaValue = tbl
+					luaValue = innertbl
 				case map[string]string:
-					tbl := L.CreateTable(0, len(v))
+					innertbl := L.CreateTable(0, len(v))
 					for key, val := range v {
-						tbl.RawSetString(key, lua.LString(val))
+						innertbl.RawSetString(key, lua.LString(val))
 					}
 
-					luaValue = tbl
+					luaValue = innertbl
 				default:
 					t.Fatalf("Unsupported test input type: %T", input)
 				}
@@ -297,8 +297,9 @@ func TestAllFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 
-			boolResult := bool(result.(lua.LBool))
-			require.Equal(t, tt.expected, boolResult)
+			value, ok := result.(lua.LBool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, bool(value))
 		})
 	}
 }
@@ -362,19 +363,19 @@ func TestAnyFunc(t *testing.T) {
 				case bool:
 					luaValue = lua.LBool(v)
 				case []int:
-					tbl := L.CreateTable(len(v), 0)
+					innertbl := L.CreateTable(len(v), 0)
 					for _, val := range v {
-						tbl.Append(lua.LNumber(val))
+						innertbl.Append(lua.LNumber(val))
 					}
 
-					luaValue = tbl
+					luaValue = innertbl
 				case map[string]string:
-					tbl := L.CreateTable(0, len(v))
+					innertbl := L.CreateTable(0, len(v))
 					for key, val := range v {
-						tbl.RawSetString(key, lua.LString(val))
+						innertbl.RawSetString(key, lua.LString(val))
 					}
 
-					luaValue = tbl
+					luaValue = innertbl
 				default:
 					t.Fatalf("Unsupported test input type: %T", input)
 				}
@@ -389,32 +390,43 @@ func TestAnyFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 
-			boolResult := bool(result.(lua.LBool))
-			require.Equal(t, tt.expected, boolResult)
+			value, ok := result.(lua.LBool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, bool(value))
 		})
 	}
 }
 
 func TestB32decFunc(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		input       string
+		expected    string
+		expectError bool
 	}{
 		{
-			input:    "ORSXG5A=",
-			expected: "test",
+			input:       "ORSXG5A=",
+			expected:    "test",
+			expectError: false,
 		},
 		{
-			input:    "ORSXG5BRGIZQ====",
-			expected: "test123",
+			input:       "ORSXG5BRGIZQ====",
+			expected:    "test123",
+			expectError: false,
 		},
 		{
-			input:    "NBSWY3DPEB3W64TMMQ======",
-			expected: "hello world",
+			input:       "NBSWY3DPEB3W64TMMQ======",
+			expected:    "hello world",
+			expectError: false,
 		},
 		{
-			input:    "",
-			expected: "",
+			input:       "",
+			expected:    "",
+			expectError: false,
+		},
+		{
+			input:       "!@#$%^",
+			expected:    "",
+			expectError: true,
 		},
 	}
 
@@ -425,10 +437,24 @@ func TestB32decFunc(t *testing.T) {
 
 			L.Push(lua.LString(tt.input))
 
-			gluasprig.B32decFunc(L)
+			numReturns := gluasprig.B32decFunc(L)
+			require.Equal(t, 2, numReturns, "Should return 2 values")
 
-			result := L.ToString(-1)
-			require.Equal(t, tt.expected, result)
+			errValue := L.Get(-1)
+			L.Pop(1)
+
+			result := L.Get(-1)
+			L.Pop(1)
+
+			if tt.expectError {
+				require.Equal(t, lua.LTNil, result.Type(), "Should return nil value on error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Should return non-nil error")
+			} else {
+				value, ok := result.(lua.LString)
+				require.True(t, ok)
+				require.Equal(t, tt.expected, string(value), "Result should match expected")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Should have nil error")
+			}
 		})
 	}
 }
@@ -473,24 +499,34 @@ func TestB32encFunc(t *testing.T) {
 
 func TestB64decFunc(t *testing.T) {
 	tests := []struct {
-		input    string
-		expected string
+		input       string
+		expected    string
+		expectError bool
 	}{
 		{
-			input:    "dGVzdA==",
-			expected: "test",
+			input:       "dGVzdA==",
+			expected:    "test",
+			expectError: false,
 		},
 		{
-			input:    "dGVzdDEyMw==",
-			expected: "test123",
+			input:       "dGVzdDEyMw==",
+			expected:    "test123",
+			expectError: false,
 		},
 		{
-			input:    "aGVsbG8gd29ybGQ=",
-			expected: "hello world",
+			input:       "aGVsbG8gd29ybGQ=",
+			expected:    "hello world",
+			expectError: false,
 		},
 		{
-			input:    "",
-			expected: "",
+			input:       "",
+			expected:    "",
+			expectError: false,
+		},
+		{
+			input:       "!@#$%^",
+			expected:    "",
+			expectError: true,
 		},
 	}
 
@@ -501,10 +537,24 @@ func TestB64decFunc(t *testing.T) {
 
 			L.Push(lua.LString(tt.input))
 
-			gluasprig.B64decFunc(L)
+			numReturns := gluasprig.B64decFunc(L)
+			require.Equal(t, 2, numReturns, "Should return 2 values")
 
-			result := L.ToString(-1)
-			require.Equal(t, tt.expected, result)
+			errValue := L.Get(-1)
+			L.Pop(1)
+
+			result := L.Get(-1)
+			L.Pop(1)
+
+			if tt.expectError {
+				require.Equal(t, lua.LTNil, result.Type(), "Should return nil value on error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Should return non-nil error")
+			} else {
+				value, ok := result.(lua.LString)
+				require.True(t, ok)
+				require.Equal(t, tt.expected, string(value), "Result should match expected")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Should have nil error")
+			}
 		})
 	}
 }
@@ -671,8 +721,8 @@ func TestCamelcaseFunc(t *testing.T) {
 
 func TestCatFunc(t *testing.T) {
 	tests := []struct {
-		inputs   []any
 		expected string
+		inputs   []any
 	}{
 		{
 			inputs:   []any{"hello", "world"},
@@ -741,6 +791,7 @@ func TestCatFunc(t *testing.T) {
 				default:
 					luaValue = lua.LString(fmt.Sprint(v))
 				}
+
 				L.Push(luaValue)
 			}
 
@@ -792,9 +843,9 @@ func TestCleanFunc(t *testing.T) {
 
 func TestCoalesceFunc(t *testing.T) {
 	tests := []struct {
+		expectedValue any
 		inputs        []any
 		expectedType  lua.LValueType
-		expectedValue any
 	}{
 		{
 			inputs:        []any{"", nil, "hello", "world"},
@@ -882,16 +933,28 @@ func TestCoalesceFunc(t *testing.T) {
 			gluasprig.CoalesceFunc(L)
 
 			result := L.Get(-1)
-			require.Equal(t, tt.expectedType, result.Type(), "Expected type %v but got %v for inputs %v", tt.expectedType, result.Type(), tt.inputs)
+			require.Equal(t, tt.expectedType, result.Type(),
+				"Expected type %v but got %v for inputs %v", tt.expectedType, result.Type(), tt.inputs,
+			)
 
 			switch tt.expectedType {
 			case lua.LTNil:
 			case lua.LTString:
 				require.Equal(t, tt.expectedValue, result.String(), "For inputs %v", tt.inputs)
 			case lua.LTNumber:
-				require.Equal(t, tt.expectedValue, float64(result.(lua.LNumber)), "For inputs %v", tt.inputs)
+				ln, ok := result.(lua.LNumber)
+				if !ok {
+					panic("error asserting to lua.LNumber")
+				}
+
+				require.InDelta(t, tt.expectedValue, float64(ln), 0.00001, "For inputs %v", tt.inputs)
 			case lua.LTBool:
-				require.Equal(t, tt.expectedValue, bool(result.(lua.LBool)), "For inputs %v", tt.inputs)
+				lb, ok := result.(lua.LBool)
+				if !ok {
+					panic("error asserting to lua.LBool")
+				}
+
+				require.Equal(t, tt.expectedValue, bool(lb), "For inputs %v", tt.inputs)
 			}
 		})
 	}
@@ -934,6 +997,7 @@ func TestCompactFunc(t *testing.T) {
 			defer L.Close()
 
 			tbl := L.CreateTable(len(tt.input), 0)
+
 			for i, item := range tt.input {
 				var luaValue lua.LValue
 
@@ -962,7 +1026,9 @@ func TestCompactFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTTable, result.Type(), "Expected table return type")
 
-			resultTbl := result.(*lua.LTable)
+			resultTbl, ok := result.(*lua.LTable)
+			require.True(t, ok)
+
 			resultArray := make([]any, 0)
 
 			resultTbl.ForEach(func(idx, value lua.LValue) {
@@ -974,15 +1040,26 @@ func TestCompactFunc(t *testing.T) {
 				case lua.LTString:
 					resultArray = append(resultArray, value.String())
 				case lua.LTNumber:
-					resultArray = append(resultArray, float64(value.(lua.LNumber)))
+					ln, ok := value.(lua.LNumber)
+					if !ok {
+						panic("error asserting to lua.LNumber")
+					}
+
+					resultArray = append(resultArray, float64(ln))
 				case lua.LTBool:
-					resultArray = append(resultArray, bool(value.(lua.LBool)))
+					lb, ok := value.(lua.LBool)
+					if !ok {
+						panic("error asserting to lua.LBool")
+					}
+
+					resultArray = append(resultArray, bool(lb))
 				default:
 					resultArray = append(resultArray, value.String())
 				}
 			})
 
 			require.Equal(t, len(tt.expected), len(resultArray), "Result array length doesn't match expected length")
+
 			for i, v := range tt.expected {
 				require.Equal(t, v, resultArray[i], "Value at index %d doesn't match", i)
 			}
@@ -998,7 +1075,7 @@ func TestDecryptAESFunc(t *testing.T) {
 
 		// create 32 byte key
 		key := make([]byte, 32)
-		copy(key, []byte(password))
+		copy(key, password)
 
 		// create cipher block
 		block, err := aes.NewCipher(key)
@@ -1010,12 +1087,14 @@ func TestDecryptAESFunc(t *testing.T) {
 		paddingSize := aes.BlockSize - (len(text) % aes.BlockSize)
 		padded := make([]byte, len(text)+paddingSize)
 		copy(padded, text)
+
 		for i := len(text); i < len(padded); i++ {
 			padded[i] = byte(paddingSize)
 		}
 
 		// create IV and ciphertext buffer
 		ciphertext := make([]byte, aes.BlockSize+len(padded))
+
 		iv := ciphertext[:aes.BlockSize]
 		if _, err := rand.Read(iv); err != nil {
 			panic(fmt.Sprintf("failed to read random IV: %v", err))
@@ -1075,13 +1154,13 @@ func TestDecryptAESFunc(t *testing.T) {
 
 func TestDerivePasswordFunc(t *testing.T) {
 	tests := []struct {
-		counter      uint32
 		passType     string
 		password     string
 		user         string
 		site         string
-		expectedLen  int
 		expectedType string
+		expectedLen  int
+		counter      uint32
 	}{
 		{
 			counter:      1,
@@ -1197,7 +1276,7 @@ func TestDerivePasswordFunc(t *testing.T) {
 				derivedPassword3 = result.String()
 			}
 
-			require.Equal(t, tt.expectedLen, len(derivedPassword1),
+			require.Len(t, derivedPassword1, tt.expectedLen,
 				"Derived password length doesn't match expected for type %s", tt.passType)
 
 			switch tt.expectedType {
@@ -1207,7 +1286,7 @@ func TestDerivePasswordFunc(t *testing.T) {
 			case "mixed":
 				hasLower := regexp.MustCompile(`[a-z]`).MatchString(derivedPassword1)
 				hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(derivedPassword1)
-				hasDigit := regexp.MustCompile(`[0-9]`).MatchString(derivedPassword1)
+				hasDigit := regexp.MustCompile(`\d`).MatchString(derivedPassword1)
 
 				if tt.passType == "long" || tt.passType == "medium" {
 					require.True(t, hasLower && hasUpper && hasDigit,
@@ -1520,8 +1599,9 @@ func TestEmptyFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 
-			boolResult := bool(result.(lua.LBool))
-			require.Equal(t, tt.expected, boolResult)
+			value, ok := result.(lua.LBool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, bool(value))
 		})
 	}
 }
@@ -1540,7 +1620,8 @@ func TestEncryptAESFunc(t *testing.T) {
 
 		// create cipher block
 		key := make([]byte, 32)
-		copy(key, []byte(password))
+		copy(key, password)
+
 		block, err := aes.NewCipher(key)
 		if err != nil {
 			panic(fmt.Sprintf("failed to create cipher: %v", err))
@@ -1550,6 +1631,7 @@ func TestEncryptAESFunc(t *testing.T) {
 		if len(data) < aes.BlockSize {
 			panic("ciphertext too short")
 		}
+
 		iv := data[:aes.BlockSize]
 		cipherData := data[aes.BlockSize:]
 
@@ -1570,7 +1652,7 @@ func TestEncryptAESFunc(t *testing.T) {
 			}
 		}
 
-		// return plaintext
+		// return plaintext value
 		return string(cipherData[:len(cipherData)-padding])
 	}
 
@@ -1738,7 +1820,7 @@ func TestGenPrivateKeyFunc(t *testing.T) {
 				require.NotNil(t, block, "Result should be decodable as PEM")
 				require.Equal(t, tt.expectedType, block.Type, "PEM block should have correct type")
 
-				require.True(t, len(block.Bytes) >= tt.minLength,
+				require.GreaterOrEqual(t, len(block.Bytes), tt.minLength,
 					"Key data should have reasonable length (at least %d bytes)", tt.minLength)
 			}
 		})
@@ -1807,9 +1889,9 @@ func TestHtpasswdFunc(t *testing.T) {
 
 func TestIndentFunc(t *testing.T) {
 	tests := []struct {
-		spaces   int
 		input    string
 		expected string
+		spaces   int
 	}{
 		{
 			spaces:   4,
@@ -1960,8 +2042,9 @@ func TestIsAbsFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 
-			boolResult := bool(result.(lua.LBool))
-			require.Equal(t, tt.expected, boolResult)
+			value, ok := result.(lua.LBool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, bool(value))
 		})
 	}
 }
@@ -2026,9 +2109,9 @@ func TestKebabcaseFunc(t *testing.T) {
 
 func TestNindentFunc(t *testing.T) {
 	tests := []struct {
-		spaces   int
 		input    string
 		expected string
+		spaces   int
 	}{
 		{
 			spaces:   4,
@@ -2395,8 +2478,9 @@ func TestOsIsAbsFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 
-			boolResult := bool(result.(lua.LBool))
-			require.Equal(t, tt.expected, boolResult)
+			value, ok := result.(lua.LBool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, bool(value))
 		})
 	}
 }
@@ -2405,8 +2489,8 @@ func TestPluralFunc(t *testing.T) {
 	tests := []struct {
 		singular string
 		plural   string
-		count    int
 		expected string
+		count    int
 	}{
 		{
 			singular: "one anchovy",
@@ -2471,8 +2555,8 @@ func TestPluralFunc(t *testing.T) {
 
 func TestQuoteFunc(t *testing.T) {
 	tests := []struct {
-		input    []any
 		expected string
+		input    []any
 	}{
 		{
 			input:    []any{"hello"},
@@ -2514,6 +2598,7 @@ func TestQuoteFunc(t *testing.T) {
 			defer L.Close()
 
 			tbl := L.NewTable()
+
 			for _, item := range tt.input {
 				var luaValue lua.LValue
 
@@ -2596,8 +2681,8 @@ func TestRegexFindAllFunc(t *testing.T) {
 	tests := []struct {
 		regex    string
 		s        string
-		n        int
 		expected []string
+		n        int
 		hasError bool
 	}{
 		{
@@ -2661,10 +2746,12 @@ func TestRegexFindAllFunc(t *testing.T) {
 				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
 				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
 
-				tbl := table.(*lua.LTable)
+				tbl, ok := table.(*lua.LTable)
+				require.True(t, ok)
+
 				results := make([]string, 0, tbl.Len())
 
-				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
+				tbl.ForEach(func(idx, value lua.LValue) {
 					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
 					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
 
@@ -2837,7 +2924,10 @@ func TestRegexMatchFunc(t *testing.T) {
 			} else {
 				require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, bool(result.(lua.LBool)))
+
+				value, ok := result.(lua.LBool)
+				require.True(t, ok)
+				require.Equal(t, tt.expected, bool(value))
 			}
 		})
 	}
@@ -3017,8 +3107,8 @@ func TestRegexSplitFunc(t *testing.T) {
 	tests := []struct {
 		regex    string
 		s        string
-		n        int
 		expected []string
+		n        int
 		hasError bool
 	}{
 		{
@@ -3089,10 +3179,12 @@ func TestRegexSplitFunc(t *testing.T) {
 				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
 				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
 
-				tbl := table.(*lua.LTable)
+				tbl, ok := table.(*lua.LTable)
+				require.True(t, ok)
+
 				results := make([]string, 0, tbl.Len())
 
-				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
+				tbl.ForEach(func(idx, value lua.LValue) {
 					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
 					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
 
@@ -3116,8 +3208,8 @@ func TestRegexSplitFunc(t *testing.T) {
 func TestRoundFunc(t *testing.T) {
 	tests := []struct {
 		value     any
-		precision int
 		roundOn   *float64
+		precision int
 		expected  float64
 	}{
 		{
@@ -3153,14 +3245,22 @@ func TestRoundFunc(t *testing.T) {
 		{
 			value:     123.45,
 			precision: 1,
-			roundOn:   func() *float64 { v := 0.4; return &v }(),
-			expected:  123.5,
+			roundOn: func() *float64 {
+				v := 0.4
+
+				return &v
+			}(),
+			expected: 123.5,
 		},
 		{
 			value:     123.41,
 			precision: 1,
-			roundOn:   func() *float64 { v := 0.4; return &v }(),
-			expected:  123.4,
+			roundOn: func() *float64 {
+				v := 0.4
+
+				return &v
+			}(),
+			expected: 123.4,
 		},
 		{
 			value:     -123.555,
@@ -3194,8 +3294,9 @@ func TestRoundFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTNumber, result.Type(), "Expected number result")
 
-			value := float64(result.(lua.LNumber))
-			require.InDelta(t, tt.expected, value, 0.0001, "Result doesn't match expected value")
+			value, ok := result.(lua.LNumber)
+			require.True(t, ok)
+			require.InDelta(t, tt.expected, float64(value), 0.0001, "Result doesn't match expected value")
 		})
 	}
 }
@@ -3312,7 +3413,10 @@ func TestSemverCompareFunc(t *testing.T) {
 			} else {
 				require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
 				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, bool(result.(lua.LBool)))
+
+				value, ok := result.(lua.LBool)
+				require.True(t, ok)
+				require.Equal(t, tt.expected, bool(value))
 			}
 		})
 	}
@@ -3320,8 +3424,8 @@ func TestSemverCompareFunc(t *testing.T) {
 
 func TestSeqFunc(t *testing.T) {
 	tests := []struct {
-		input    []int
 		expected string
+		input    []int
 	}{
 		{
 			input:    []int{1, 5},
@@ -3686,6 +3790,7 @@ func TestSortAlphaFunc(t *testing.T) {
 				luaValue = tbl
 			case []any:
 				tbl := L.CreateTable(len(v), 0)
+
 				for i, val := range v {
 					switch val := val.(type) {
 					case string:
@@ -3716,10 +3821,12 @@ func TestSortAlphaFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTTable, result.Type(), "Expected table result")
 
-			tbl := result.(*lua.LTable)
+			tbl, ok := result.(*lua.LTable)
+			require.True(t, ok)
+
 			results := make([]string, 0, tbl.Len())
 
-			tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
+			tbl.ForEach(func(idx, value lua.LValue) {
 				require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
 				require.Equal(t, lua.LTString, value.Type(), "Expected string value")
 
@@ -3741,8 +3848,8 @@ func TestSortAlphaFunc(t *testing.T) {
 
 func TestSquoteFunc(t *testing.T) {
 	tests := []struct {
-		input    []any
 		expected string
+		input    []any
 	}{
 		{
 			input:    []any{"hello"},
@@ -3804,6 +3911,7 @@ func TestSquoteFunc(t *testing.T) {
 			defer L.Close()
 
 			tbl := L.NewTable()
+
 			for _, item := range tt.input {
 				var luaValue lua.LValue
 				switch v := item.(type) {
@@ -3822,6 +3930,7 @@ func TestSquoteFunc(t *testing.T) {
 				default:
 					luaValue = lua.LString(fmt.Sprint(v))
 				}
+
 				tbl.Append(luaValue)
 			}
 
@@ -3837,10 +3946,10 @@ func TestSquoteFunc(t *testing.T) {
 
 func TestSubstrFunc(t *testing.T) {
 	tests := []struct {
-		start    int
-		end      int
 		input    string
 		expected string
+		start    int
+		end      int
 	}{
 		{
 			start:    0,
@@ -3985,10 +4094,10 @@ func TestTernaryFunc(t *testing.T) {
 	tests := []struct {
 		trueValue      lua.LValue
 		falseValue     lua.LValue
-		condition      bool
+		expectedString string
 		expectedType   lua.LValueType
 		expectedNumber float64
-		expectedString string
+		condition      bool
 		expectedBool   bool
 	}{
 		{
@@ -4105,9 +4214,19 @@ func TestTernaryFunc(t *testing.T) {
 			case lua.LTString:
 				require.Equal(t, tt.expectedString, result.String())
 			case lua.LTNumber:
-				require.Equal(t, tt.expectedNumber, float64(result.(lua.LNumber)))
+				ln, ok := result.(lua.LNumber)
+				if !ok {
+					panic("error asserting to lua.LBool")
+				}
+
+				require.InDelta(t, tt.expectedNumber, float64(ln), 0.00001)
 			case lua.LTBool:
-				require.Equal(t, tt.expectedBool, bool(result.(lua.LBool)))
+				lb, ok := result.(lua.LBool)
+				if !ok {
+					panic("error asserting to lua.LBool")
+				}
+
+				require.Equal(t, tt.expectedBool, bool(lb))
 			case lua.LTTable:
 				require.IsType(t, &lua.LTable{}, result)
 			case lua.LTNil:
@@ -4181,17 +4300,18 @@ func TestToDecimalFunc(t *testing.T) {
 			result := L.Get(-1)
 			require.Equal(t, lua.LTNumber, result.Type(), "Expected number result")
 
-			value := int64(result.(lua.LNumber))
-			require.Equal(t, tt.decimal, value, "Result doesn't match expected value")
+			value, ok := result.(lua.LNumber)
+			require.True(t, ok)
+			require.Equal(t, tt.decimal, int64(value), "Result doesn't match expected value")
 		})
 	}
 }
 
 func TestTruncFunc(t *testing.T) {
 	tests := []struct {
-		length   int
 		input    string
 		expected string
+		length   int
 	}{
 		{
 			length:   5,
@@ -4297,6 +4417,7 @@ func TestUniqFunc(t *testing.T) {
 			for j, v := range tt.expected {
 				expectedTable.RawSetInt(j+1, v)
 			}
+
 			require.Equal(t, len(tt.expected), result.Len(), "Table length mismatch")
 
 			for j, expectedVal := range tt.expected {
@@ -4373,7 +4494,7 @@ func TestUntitleFunc(t *testing.T) {
 	}
 }
 
-func TestUrlJoinFunc(t *testing.T) {
+func TestURLJoinFunc(t *testing.T) {
 	tests := []struct {
 		input    map[string]string
 		expected string
@@ -4465,7 +4586,7 @@ func TestUrlJoinFunc(t *testing.T) {
 
 			L.Push(tbl)
 
-			gluasprig.UrlJoinFunc(L)
+			gluasprig.URLJoinFunc(L)
 
 			result := L.ToString(-1)
 			require.Equal(t, tt.expected, result)
@@ -4473,10 +4594,10 @@ func TestUrlJoinFunc(t *testing.T) {
 	}
 }
 
-func TestUrlParseFunc(t *testing.T) {
+func TestURLParseFunc(t *testing.T) {
 	tests := []struct {
-		input    string
 		expected map[string]string
+		input    string
 	}{
 		{
 			input: "https://example.com",
@@ -4630,19 +4751,24 @@ func TestUrlParseFunc(t *testing.T) {
 
 			L.Push(lua.LString(tt.input))
 
-			gluasprig.UrlParseFunc(L)
+			gluasprig.URLParseFunc(L)
 
 			result := L.Get(-1)
 			require.Equal(t, lua.LTTable, result.Type(), "Expected table return type")
 
-			tbl := result.(*lua.LTable)
+			tbl, ok := result.(*lua.LTable)
+			require.True(t, ok)
+
 			resultMap := make(map[string]string)
 
 			tbl.ForEach(func(k, v lua.LValue) {
 				if k.Type() == lua.LTString {
-					key := string(k.(lua.LString))
+					key, ok := k.(lua.LString)
+					if !ok {
+						panic("error asserting to lua.LString")
+					}
 
-					resultMap[key] = v.String()
+					resultMap[string(key)] = v.String()
 				}
 			})
 
@@ -4657,9 +4783,9 @@ func TestUrlParseFunc(t *testing.T) {
 
 func TestWrapFunc(t *testing.T) {
 	tests := []struct {
-		width    int
 		input    string
 		expected string
+		width    int
 	}{
 		{
 			width:    5,
@@ -4736,10 +4862,10 @@ func TestWrapFunc(t *testing.T) {
 
 func TestWrapWithFunc(t *testing.T) {
 	tests := []struct {
-		width      int
 		input      string
 		wrapString string
 		expected   string
+		width      int
 	}{
 		{
 			width:      5,

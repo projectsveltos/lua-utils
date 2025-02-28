@@ -89,6 +89,7 @@ func AnalyzeFunctionSignature(name string, x any) (FunctionInfo, error) {
 		numOfParams := fn.NumIn()
 
 		info.ParamTypes = make([]string, numOfParams)
+
 		for i := range numOfParams {
 			paramType := fn.In(i)
 

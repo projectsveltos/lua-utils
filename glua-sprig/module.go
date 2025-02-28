@@ -985,248 +985,6 @@ func KebabcaseFunc(L *lua.LState) int {
 	return 1
 }
 
-// MustRegexFindAllFunc wraps the sprig.mustRegexFindAll function.
-func MustRegexFindAllFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexFindAll: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexFindAll requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexFindAll"].(func(string, string, int) ([]string, error))
-	if !ok {
-		L.RaiseError("mustRegexFindAll: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-	param2 := int(L.CheckNumber(3))
-
-	result, err := fn(param0, param1, param2)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	resultTable := L.CreateTable(len(result), 0)
-	for i, v := range result {
-		resultTable.RawSetInt(i+1, lua.LString(v))
-	}
-
-	L.Push(resultTable)
-	L.Push(lua.LNil)
-
-	return 2
-}
-
-// MustRegexFindFunc wraps the sprig.mustRegexFind function.
-func MustRegexFindFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexFind: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 2 {
-		L.ArgError(1, "mustRegexFind requires 2 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexFind"].(func(string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexFind: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-
-	result, err := fn(param0, param1)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(lua.LString(result))
-	L.Push(lua.LNil)
-
-	return 2
-}
-
-// MustRegexMatchFunc wraps the sprig.mustRegexMatch function.
-func MustRegexMatchFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexMatch: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 2 {
-		L.ArgError(1, "mustRegexMatch requires 2 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexMatch"].(func(string, string) (bool, error))
-	if !ok {
-		L.RaiseError("mustRegexMatch: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-
-	result, err := fn(param0, param1)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(lua.LBool(result))
-	L.Push(lua.LNil)
-
-	return 2
-}
-
-// MustRegexReplaceAllFunc wraps the sprig.mustRegexReplaceAll function.
-func MustRegexReplaceAllFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexReplaceAll: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexReplaceAll requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexReplaceAll"].(func(string, string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexReplaceAll: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-	param2 := L.CheckString(3)
-
-	result, err := fn(param0, param1, param2)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(lua.LString(result))
-	L.Push(lua.LNil)
-
-	return 2
-}
-
-// MustRegexReplaceAllLiteralFunc wraps the sprig.mustRegexReplaceAllLiteral function.
-func MustRegexReplaceAllLiteralFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexReplaceAllLiteral: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexReplaceAllLiteral requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexReplaceAllLiteral"].(func(string, string, string) (string, error))
-	if !ok {
-		L.RaiseError("mustRegexReplaceAllLiteral: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-	param2 := L.CheckString(3)
-
-	result, err := fn(param0, param1, param2)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(lua.LString(result))
-	L.Push(lua.LNil)
-
-	return 2
-}
-
-// MustRegexSplitFunc wraps the sprig.mustRegexSplit function.
-func MustRegexSplitFunc(L *lua.LState) int {
-	defer func() {
-		if r := recover(); r != nil {
-			L.RaiseError("mustRegexSplit: %v", r)
-		}
-	}()
-
-	if L.GetTop() < 3 {
-		L.ArgError(1, "mustRegexSplit requires 3 arguments")
-
-		return 0
-	}
-
-	fn, ok := sprig.FuncMap()["mustRegexSplit"].(func(string, string, int) ([]string, error))
-	if !ok {
-		L.RaiseError("mustRegexSplit: invalid function assertion")
-
-		return 0
-	}
-
-	param0 := L.CheckString(1)
-	param1 := L.CheckString(2)
-	param2 := int(L.CheckNumber(3))
-
-	result, err := fn(param0, param1, param2)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	resultTable := L.CreateTable(len(result), 0)
-	for i, v := range result {
-		resultTable.RawSetInt(i+1, lua.LString(v))
-	}
-
-	L.Push(resultTable)
-	L.Push(lua.LNil)
-
-	return 2
-}
-
 // NindentFunc wraps the sprig.nindent function.
 func NindentFunc(L *lua.LState) int {
 	defer func() {
@@ -1556,6 +1314,248 @@ func RandIntFunc(L *lua.LState) int {
 	L.Push(lua.LNumber(result))
 
 	return 1
+}
+
+// RegexFindAllFunc wraps the sprig.mustRegexFindAll function.
+func RegexFindAllFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexFindAll: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 3 {
+		L.ArgError(1, "mustRegexFindAll requires 3 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexFindAll"].(func(string, string, int) ([]string, error))
+	if !ok {
+		L.RaiseError("mustRegexFindAll: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+	param2 := int(L.CheckNumber(3))
+
+	result, err := fn(param0, param1, param2)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	resultTable := L.CreateTable(len(result), 0)
+	for i, v := range result {
+		resultTable.RawSetInt(i+1, lua.LString(v))
+	}
+
+	L.Push(resultTable)
+	L.Push(lua.LNil)
+
+	return 2
+}
+
+// RegexFindFunc wraps the sprig.mustRegexFind function.
+func RegexFindFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexFind: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 2 {
+		L.ArgError(1, "mustRegexFind requires 2 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexFind"].(func(string, string) (string, error))
+	if !ok {
+		L.RaiseError("mustRegexFind: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+
+	result, err := fn(param0, param1)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(result))
+	L.Push(lua.LNil)
+
+	return 2
+}
+
+// RegexMatchFunc wraps the sprig.mustRegexMatch function.
+func RegexMatchFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexMatch: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 2 {
+		L.ArgError(1, "mustRegexMatch requires 2 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexMatch"].(func(string, string) (bool, error))
+	if !ok {
+		L.RaiseError("mustRegexMatch: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+
+	result, err := fn(param0, param1)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LBool(result))
+	L.Push(lua.LNil)
+
+	return 2
+}
+
+// RegexReplaceAllFunc wraps the sprig.mustRegexReplaceAll function.
+func RegexReplaceAllFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexReplaceAll: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 3 {
+		L.ArgError(1, "mustRegexReplaceAll requires 3 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexReplaceAll"].(func(string, string, string) (string, error))
+	if !ok {
+		L.RaiseError("mustRegexReplaceAll: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+	param2 := L.CheckString(3)
+
+	result, err := fn(param0, param1, param2)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(result))
+	L.Push(lua.LNil)
+
+	return 2
+}
+
+// RegexReplaceAllLiteralFunc wraps the sprig.mustRegexReplaceAllLiteral function.
+func RegexReplaceAllLiteralFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexReplaceAllLiteral: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 3 {
+		L.ArgError(1, "mustRegexReplaceAllLiteral requires 3 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexReplaceAllLiteral"].(func(string, string, string) (string, error))
+	if !ok {
+		L.RaiseError("mustRegexReplaceAllLiteral: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+	param2 := L.CheckString(3)
+
+	result, err := fn(param0, param1, param2)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(result))
+	L.Push(lua.LNil)
+
+	return 2
+}
+
+// RegexSplitFunc wraps the sprig.mustRegexSplit function.
+func RegexSplitFunc(L *lua.LState) int {
+	defer func() {
+		if r := recover(); r != nil {
+			L.RaiseError("mustRegexSplit: %v", r)
+		}
+	}()
+
+	if L.GetTop() < 3 {
+		L.ArgError(1, "mustRegexSplit requires 3 arguments")
+
+		return 0
+	}
+
+	fn, ok := sprig.FuncMap()["mustRegexSplit"].(func(string, string, int) ([]string, error))
+	if !ok {
+		L.RaiseError("mustRegexSplit: invalid function assertion")
+
+		return 0
+	}
+
+	param0 := L.CheckString(1)
+	param1 := L.CheckString(2)
+	param2 := int(L.CheckNumber(3))
+
+	result, err := fn(param0, param1, param2)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	resultTable := L.CreateTable(len(result), 0)
+	for i, v := range result {
+		resultTable.RawSetInt(i+1, lua.LString(v))
+	}
+
+	L.Push(resultTable)
+	L.Push(lua.LNil)
+
+	return 2
 }
 
 // RoundFunc wraps the sprig.round function.
@@ -2331,74 +2331,74 @@ func WrapWithFunc(L *lua.LState) int {
 // Loader is the entrypoint to load the sprig library into a LState.
 func Loader(L *lua.LState) int {
 	mod := L.RegisterModule("sprig", map[string]lua.LGFunction{
-		"abbrev":                     AbbrevFunc,
-		"abbrevboth":                 AbbrevbothFunc,
-		"adler32sum":                 Adler32sumFunc,
-		"ago":                        AgoFunc,
-		"all":                        AllFunc,
-		"any":                        AnyFunc,
-		"b32dec":                     B32decFunc,
-		"b32enc":                     B32encFunc,
-		"b64dec":                     B64decFunc,
-		"b64enc":                     B64encFunc,
-		"base":                       BaseFunc,
-		"bcrypt":                     BcryptFunc,
-		"camelcase":                  CamelcaseFunc,
-		"cat":                        CatFunc,
-		"clean":                      CleanFunc,
-		"coalesce":                   CoalesceFunc,
-		"compact":                    CompactFunc,
-		"decryptAES":                 DecryptAESFunc,
-		"derivePassword":             DerivePasswordFunc,
-		"dir":                        DirFunc,
-		"duration":                   DurationFunc,
-		"durationRound":              DurationRoundFunc,
-		"empty":                      EmptyFunc,
-		"encryptAES":                 EncryptAESFunc,
-		"ext":                        ExtFunc,
-		"genPrivateKey":              GenPrivateKeyFunc,
-		"htpasswd":                   HtpasswdFunc,
-		"indent":                     IndentFunc,
-		"initials":                   InitialsFunc,
-		"isAbs":                      IsAbsFunc,
-		"kebabcase":                  KebabcaseFunc,
-		"mustRegexFind":              MustRegexFindFunc,
-		"mustRegexFindAll":           MustRegexFindAllFunc,
-		"mustRegexMatch":             MustRegexMatchFunc,
-		"mustRegexReplaceAll":        MustRegexReplaceAllFunc,
-		"mustRegexReplaceAllLiteral": MustRegexReplaceAllLiteralFunc,
-		"mustRegexSplit":             MustRegexSplitFunc,
-		"nindent":                    NindentFunc,
-		"nospace":                    NospaceFunc,
-		"osBase":                     OsBaseFunc,
-		"osClean":                    OsCleanFunc,
-		"osDir":                      OsDirFunc,
-		"osExt":                      OsExtFunc,
-		"osIsAbs":                    OsIsAbsFunc,
-		"plural":                     PluralFunc,
-		"quote":                      QuoteFunc,
-		"randInt":                    RandIntFunc,
-		"round":                      RoundFunc,
-		"semverCompare":              SemverCompareFunc,
-		"seq":                        SeqFunc,
-		"sha1sum":                    Sha1sumFunc,
-		"sha256sum":                  Sha256sumFunc,
-		"sha512sum":                  Sha512sumFunc,
-		"shuffle":                    ShuffleFunc,
-		"snakecase":                  SnakecaseFunc,
-		"sortAlpha":                  SortAlphaFunc,
-		"squote":                     SquoteFunc,
-		"substr":                     SubstrFunc,
-		"swapcase":                   SwapcaseFunc,
-		"ternary":                    TernaryFunc,
-		"toDecimal":                  ToDecimalFunc,
-		"trunc":                      TruncFunc,
-		"uniq":                       UniqFunc,
-		"untitle":                    UntitleFunc,
-		"urlJoin":                    UrlJoinFunc,
-		"urlParse":                   UrlParseFunc,
-		"wrap":                       WrapFunc,
-		"wrapWith":                   WrapWithFunc,
+		"abbrev":                 AbbrevFunc,
+		"abbrevboth":             AbbrevbothFunc,
+		"adler32sum":             Adler32sumFunc,
+		"ago":                    AgoFunc,
+		"all":                    AllFunc,
+		"any":                    AnyFunc,
+		"b32dec":                 B32decFunc,
+		"b32enc":                 B32encFunc,
+		"b64dec":                 B64decFunc,
+		"b64enc":                 B64encFunc,
+		"base":                   BaseFunc,
+		"bcrypt":                 BcryptFunc,
+		"camelcase":              CamelcaseFunc,
+		"cat":                    CatFunc,
+		"clean":                  CleanFunc,
+		"coalesce":               CoalesceFunc,
+		"compact":                CompactFunc,
+		"decryptAES":             DecryptAESFunc,
+		"derivePassword":         DerivePasswordFunc,
+		"dir":                    DirFunc,
+		"duration":               DurationFunc,
+		"durationRound":          DurationRoundFunc,
+		"empty":                  EmptyFunc,
+		"encryptAES":             EncryptAESFunc,
+		"ext":                    ExtFunc,
+		"genPrivateKey":          GenPrivateKeyFunc,
+		"htpasswd":               HtpasswdFunc,
+		"indent":                 IndentFunc,
+		"initials":               InitialsFunc,
+		"isAbs":                  IsAbsFunc,
+		"kebabcase":              KebabcaseFunc,
+		"nindent":                NindentFunc,
+		"nospace":                NospaceFunc,
+		"osBase":                 OsBaseFunc,
+		"osClean":                OsCleanFunc,
+		"osDir":                  OsDirFunc,
+		"osExt":                  OsExtFunc,
+		"osIsAbs":                OsIsAbsFunc,
+		"plural":                 PluralFunc,
+		"quote":                  QuoteFunc,
+		"randInt":                RandIntFunc,
+		"regexFind":              RegexFindFunc,
+		"regexFindAll":           RegexFindAllFunc,
+		"regexMatch":             RegexMatchFunc,
+		"regexReplaceAll":        RegexReplaceAllFunc,
+		"regexReplaceAllLiteral": RegexReplaceAllLiteralFunc,
+		"regexSplit":             RegexSplitFunc,
+		"round":                  RoundFunc,
+		"semverCompare":          SemverCompareFunc,
+		"seq":                    SeqFunc,
+		"sha1sum":                Sha1sumFunc,
+		"sha256sum":              Sha256sumFunc,
+		"sha512sum":              Sha512sumFunc,
+		"shuffle":                ShuffleFunc,
+		"snakecase":              SnakecaseFunc,
+		"sortAlpha":              SortAlphaFunc,
+		"squote":                 SquoteFunc,
+		"substr":                 SubstrFunc,
+		"swapcase":               SwapcaseFunc,
+		"ternary":                TernaryFunc,
+		"toDecimal":              ToDecimalFunc,
+		"trunc":                  TruncFunc,
+		"uniq":                   UniqFunc,
+		"untitle":                UntitleFunc,
+		"urlJoin":                UrlJoinFunc,
+		"urlParse":               UrlParseFunc,
+		"wrap":                   WrapFunc,
+		"wrapWith":               WrapWithFunc,
 	})
 
 	L.Push(mod)

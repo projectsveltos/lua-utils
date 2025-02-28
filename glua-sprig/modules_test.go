@@ -2024,527 +2024,6 @@ func TestKebabcaseFunc(t *testing.T) {
 	}
 }
 
-func TestMustRegexFindAllFunc(t *testing.T) {
-	tests := []struct {
-		regex    string
-		s        string
-		n        int
-		expected []string
-		hasError bool
-	}{
-		{
-			regex:    `\d+`,
-			s:        "abc123def456ghi",
-			n:        -1,
-			expected: []string{"123", "456"},
-			hasError: false,
-		},
-		{
-			regex:    `\w{3}`,
-			s:        "abc123def456ghi",
-			n:        2,
-			expected: []string{"abc", "123"},
-			hasError: false,
-		},
-		{
-			regex:    `[a-z]+`,
-			s:        "abc123def456ghi",
-			n:        -1,
-			expected: []string{"abc", "def", "ghi"},
-			hasError: false,
-		},
-		{
-			regex:    `\d`,
-			s:        "no digits here",
-			n:        -1,
-			expected: []string{},
-			hasError: false,
-		},
-		{
-			regex:    `[`,
-			s:        "invalid regex pattern",
-			n:        -1,
-			expected: nil,
-			hasError: true,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.s))
-			L.Push(lua.LNumber(tt.n))
-
-			gluasprig.MustRegexFindAllFunc(L)
-
-			if tt.hasError {
-				result := L.Get(-2)
-				errMsg := L.Get(-1)
-
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result for invalid regex")
-				require.Equal(t, lua.LTString, errMsg.Type(), "Expected error message")
-			} else {
-				table := L.Get(-2)
-				errMsg := L.Get(-1)
-
-				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
-				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
-
-				tbl := table.(*lua.LTable)
-				results := make([]string, 0, tbl.Len())
-
-				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
-					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
-					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
-
-					results = append(results, value.String())
-				})
-
-				require.Equal(t, len(tt.expected), len(results), "Table length doesn't match expected length")
-
-				if len(tt.expected) == 0 {
-					require.Empty(t, results, "Expected empty results")
-				} else {
-					require.Equal(t, tt.expected, results, "Table results don't match expected values")
-				}
-
-				require.Equal(t, len(tt.expected), tbl.Len(), "Table length doesn't match expected length")
-			}
-		})
-	}
-}
-
-func TestMustRegexFindFunc(t *testing.T) {
-	tests := []struct {
-		regex    string
-		input    string
-		expected string
-		wantErr  bool
-	}{
-		{
-			regex:    "\\d+",
-			input:    "abc123def",
-			expected: "123",
-			wantErr:  false,
-		},
-		{
-			regex:    "[a-z]+",
-			input:    "123abc456",
-			expected: "abc",
-			wantErr:  false,
-		},
-		{
-			regex:    "foo",
-			input:    "bar",
-			expected: "",
-			wantErr:  false,
-		},
-		{
-			regex:    "^hello",
-			input:    "hello world",
-			expected: "hello",
-			wantErr:  false,
-		},
-		{
-			regex:    "(\\w+)@(\\w+).com",
-			input:    "contact me at user@example.com",
-			expected: "user@example.com",
-			wantErr:  false,
-		},
-		{
-			regex:    "(",
-			input:    "test",
-			expected: "",
-			wantErr:  true,
-		},
-		{
-			regex:    "",
-			input:    "test",
-			expected: "",
-			wantErr:  false,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.input))
-
-			gluasprig.MustRegexFindFunc(L)
-
-			result := L.Get(-2)
-			errValue := L.Get(-1)
-
-			if tt.wantErr {
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
-				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
-			} else {
-				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
-				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, result.String())
-			}
-		})
-	}
-}
-
-func TestMustRegexMatchFunc(t *testing.T) {
-	tests := []struct {
-		regex    string
-		input    string
-		expected bool
-		wantErr  bool
-	}{
-		{
-			regex:    "^\\d+$",
-			input:    "12345",
-			expected: true,
-			wantErr:  false,
-		},
-		{
-			regex:    "^\\d+$",
-			input:    "12345abc",
-			expected: false,
-			wantErr:  false,
-		},
-		{
-			regex:    "^[a-z]+$",
-			input:    "abcdef",
-			expected: true,
-			wantErr:  false,
-		},
-		{
-			regex:    "^hello.*world$",
-			input:    "hello world",
-			expected: true,
-			wantErr:  false,
-		},
-		{
-			regex:    "^hello.*world$",
-			input:    "hello wonderful world",
-			expected: true,
-			wantErr:  false,
-		},
-		{
-			regex:    "^hello.*world$",
-			input:    "hello but no world here",
-			expected: false,
-			wantErr:  false,
-		},
-		{
-			regex:    "(",
-			input:    "test",
-			expected: false,
-			wantErr:  true,
-		},
-		{
-			regex:    "",
-			input:    "",
-			expected: true,
-			wantErr:  false,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.input))
-
-			gluasprig.MustRegexMatchFunc(L)
-
-			result := L.Get(-2)
-			errValue := L.Get(-1)
-
-			if tt.wantErr {
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
-				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
-			} else {
-				require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
-				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, bool(result.(lua.LBool)))
-			}
-		})
-	}
-}
-
-func TestMustRegexReplaceAllFunc(t *testing.T) {
-	tests := []struct {
-		regex       string
-		replacement string
-		input       string
-		expected    string
-		wantErr     bool
-	}{
-		{
-			regex:       "\\d+",
-			replacement: "NUM",
-			input:       "abc123def456",
-			expected:    "abcNUMdefNUM",
-			wantErr:     false,
-		},
-		{
-			regex:       "[a-z]+",
-			replacement: "WORD",
-			input:       "123abc456def",
-			expected:    "123WORD456WORD",
-			wantErr:     false,
-		},
-		{
-			regex:       "foo",
-			replacement: "bar",
-			input:       "footest foobar",
-			expected:    "bartest barbar",
-			wantErr:     false,
-		},
-		{
-			regex:       "(\\w+)@(\\w+)",
-			replacement: "$1@example",
-			input:       "contact user@domain.com",
-			expected:    "contact user@example.com",
-			wantErr:     false,
-		},
-		{
-			regex:       "\\s+",
-			replacement: " ",
-			input:       "multiple    spaces\t\tbetween\nwords",
-			expected:    "multiple spaces between words",
-			wantErr:     false,
-		},
-		{
-			regex:       "(",
-			replacement: "invalid",
-			input:       "test with invalid regex",
-			expected:    "",
-			wantErr:     true,
-		},
-		{
-			regex:       "",
-			replacement: "x",
-			input:       "empty regex",
-			expected:    "xexmxpxtxyx xrxexgxexxx",
-			wantErr:     false,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.input))
-			L.Push(lua.LString(tt.replacement))
-
-			gluasprig.MustRegexReplaceAllFunc(L)
-
-			result := L.Get(-2)
-			errValue := L.Get(-1)
-
-			if tt.wantErr {
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
-				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
-			} else {
-				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
-				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, result.String())
-			}
-		})
-	}
-}
-
-func TestMustRegexReplaceAllLiteralFunc(t *testing.T) {
-	tests := []struct {
-		regex       string
-		replacement string
-		input       string
-		expected    string
-		wantErr     bool
-	}{
-		{
-			regex:       "\\d+",
-			replacement: "NUM",
-			input:       "abc123def456",
-			expected:    "abcNUMdefNUM",
-			wantErr:     false,
-		},
-		{
-			regex:       "[a-z]+",
-			replacement: "WORD",
-			input:       "123abc456def",
-			expected:    "123WORD456WORD",
-			wantErr:     false,
-		},
-		{
-			regex:       "foo",
-			replacement: "bar",
-			input:       "footest foobar",
-			expected:    "bartest barbar",
-			wantErr:     false,
-		},
-		{
-			regex:       "(\\w+)@(\\w+)",
-			replacement: "$1@example",
-			input:       "contact user@domain.com",
-			expected:    "contact $1@example.com",
-			wantErr:     false,
-		},
-		{
-			regex:       "\\$\\d",
-			replacement: "DOLLAR",
-			input:       "Price: $5 and $9",
-			expected:    "Price: DOLLAR and DOLLAR",
-			wantErr:     false,
-		},
-		{
-			regex:       "(",
-			replacement: "invalid",
-			input:       "test with invalid regex",
-			expected:    "",
-			wantErr:     true,
-		},
-		{
-			regex:       "",
-			replacement: "x",
-			input:       "empty regex",
-			expected:    "xexmxpxtxyx xrxexgxexxx",
-			wantErr:     false,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.input))
-			L.Push(lua.LString(tt.replacement))
-
-			gluasprig.MustRegexReplaceAllLiteralFunc(L)
-
-			result := L.Get(-2)
-			errValue := L.Get(-1)
-
-			if tt.wantErr {
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
-				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
-			} else {
-				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
-				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
-				require.Equal(t, tt.expected, result.String())
-			}
-		})
-	}
-}
-
-func TestMustRegexSplitFunc(t *testing.T) {
-	tests := []struct {
-		regex    string
-		s        string
-		n        int
-		expected []string
-		hasError bool
-	}{
-		{
-			regex:    `,`,
-			s:        "a,b,c,d",
-			n:        -1,
-			expected: []string{"a", "b", "c", "d"},
-			hasError: false,
-		},
-		{
-			regex:    `\s+`,
-			s:        "hello  world   test",
-			n:        -1,
-			expected: []string{"hello", "world", "test"},
-			hasError: false,
-		},
-		{
-			regex:    `;`,
-			s:        "one;two;three",
-			n:        2,
-			expected: []string{"one", "two;three"},
-			hasError: false,
-		},
-		{
-			regex:    `\d+`,
-			s:        "abc123def456",
-			n:        -1,
-			expected: []string{"abc", "def", ""},
-			hasError: false,
-		},
-		{
-			regex:    `,`,
-			s:        "no commas here",
-			n:        -1,
-			expected: []string{"no commas here"},
-			hasError: false,
-		},
-		{
-			regex:    `[`,
-			s:        "invalid regex pattern",
-			n:        -1,
-			expected: nil,
-			hasError: true,
-		},
-	}
-
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
-			L := lua.NewState()
-			defer L.Close()
-
-			L.Push(lua.LString(tt.regex))
-			L.Push(lua.LString(tt.s))
-			L.Push(lua.LNumber(tt.n))
-
-			gluasprig.MustRegexSplitFunc(L)
-
-			if tt.hasError {
-				result := L.Get(-2)
-				errMsg := L.Get(-1)
-
-				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result for invalid regex")
-				require.Equal(t, lua.LTString, errMsg.Type(), "Expected error message")
-			} else {
-				table := L.Get(-2)
-				errMsg := L.Get(-1)
-
-				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
-				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
-
-				tbl := table.(*lua.LTable)
-				results := make([]string, 0, tbl.Len())
-
-				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
-					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
-					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
-
-					results = append(results, value.String())
-				})
-
-				require.Equal(t, len(tt.expected), len(results), "Table length doesn't match expected length")
-
-				if len(tt.expected) == 0 {
-					require.Empty(t, results, "Expected empty results")
-				} else {
-					require.Equal(t, tt.expected, results, "Table results don't match expected values")
-				}
-
-				require.Equal(t, len(tt.expected), tbl.Len(), "Table length doesn't match expected length")
-			}
-		})
-	}
-}
-
 func TestNindentFunc(t *testing.T) {
 	tests := []struct {
 		spaces   int
@@ -3109,6 +2588,527 @@ func TestRandIntFunc(t *testing.T) {
 
 			require.GreaterOrEqual(t, int(numResult), tt.min, "Result should be greater than or equal to min")
 			require.LessOrEqual(t, int(numResult), tt.max, "Result should be less than or equal to max")
+		})
+	}
+}
+
+func TestRegexFindAllFunc(t *testing.T) {
+	tests := []struct {
+		regex    string
+		s        string
+		n        int
+		expected []string
+		hasError bool
+	}{
+		{
+			regex:    `\d+`,
+			s:        "abc123def456ghi",
+			n:        -1,
+			expected: []string{"123", "456"},
+			hasError: false,
+		},
+		{
+			regex:    `\w{3}`,
+			s:        "abc123def456ghi",
+			n:        2,
+			expected: []string{"abc", "123"},
+			hasError: false,
+		},
+		{
+			regex:    `[a-z]+`,
+			s:        "abc123def456ghi",
+			n:        -1,
+			expected: []string{"abc", "def", "ghi"},
+			hasError: false,
+		},
+		{
+			regex:    `\d`,
+			s:        "no digits here",
+			n:        -1,
+			expected: []string{},
+			hasError: false,
+		},
+		{
+			regex:    `[`,
+			s:        "invalid regex pattern",
+			n:        -1,
+			expected: nil,
+			hasError: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.s))
+			L.Push(lua.LNumber(tt.n))
+
+			gluasprig.RegexFindAllFunc(L)
+
+			if tt.hasError {
+				result := L.Get(-2)
+				errMsg := L.Get(-1)
+
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result for invalid regex")
+				require.Equal(t, lua.LTString, errMsg.Type(), "Expected error message")
+			} else {
+				table := L.Get(-2)
+				errMsg := L.Get(-1)
+
+				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
+				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
+
+				tbl := table.(*lua.LTable)
+				results := make([]string, 0, tbl.Len())
+
+				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
+					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
+					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
+
+					results = append(results, value.String())
+				})
+
+				require.Equal(t, len(tt.expected), len(results), "Table length doesn't match expected length")
+
+				if len(tt.expected) == 0 {
+					require.Empty(t, results, "Expected empty results")
+				} else {
+					require.Equal(t, tt.expected, results, "Table results don't match expected values")
+				}
+
+				require.Equal(t, len(tt.expected), tbl.Len(), "Table length doesn't match expected length")
+			}
+		})
+	}
+}
+
+func TestRegexFindFunc(t *testing.T) {
+	tests := []struct {
+		regex    string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{
+			regex:    "\\d+",
+			input:    "abc123def",
+			expected: "123",
+			wantErr:  false,
+		},
+		{
+			regex:    "[a-z]+",
+			input:    "123abc456",
+			expected: "abc",
+			wantErr:  false,
+		},
+		{
+			regex:    "foo",
+			input:    "bar",
+			expected: "",
+			wantErr:  false,
+		},
+		{
+			regex:    "^hello",
+			input:    "hello world",
+			expected: "hello",
+			wantErr:  false,
+		},
+		{
+			regex:    "(\\w+)@(\\w+).com",
+			input:    "contact me at user@example.com",
+			expected: "user@example.com",
+			wantErr:  false,
+		},
+		{
+			regex:    "(",
+			input:    "test",
+			expected: "",
+			wantErr:  true,
+		},
+		{
+			regex:    "",
+			input:    "test",
+			expected: "",
+			wantErr:  false,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.input))
+
+			gluasprig.RegexFindFunc(L)
+
+			result := L.Get(-2)
+			errValue := L.Get(-1)
+
+			if tt.wantErr {
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
+			} else {
+				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
+				require.Equal(t, tt.expected, result.String())
+			}
+		})
+	}
+}
+
+func TestRegexMatchFunc(t *testing.T) {
+	tests := []struct {
+		regex    string
+		input    string
+		expected bool
+		wantErr  bool
+	}{
+		{
+			regex:    "^\\d+$",
+			input:    "12345",
+			expected: true,
+			wantErr:  false,
+		},
+		{
+			regex:    "^\\d+$",
+			input:    "12345abc",
+			expected: false,
+			wantErr:  false,
+		},
+		{
+			regex:    "^[a-z]+$",
+			input:    "abcdef",
+			expected: true,
+			wantErr:  false,
+		},
+		{
+			regex:    "^hello.*world$",
+			input:    "hello world",
+			expected: true,
+			wantErr:  false,
+		},
+		{
+			regex:    "^hello.*world$",
+			input:    "hello wonderful world",
+			expected: true,
+			wantErr:  false,
+		},
+		{
+			regex:    "^hello.*world$",
+			input:    "hello but no world here",
+			expected: false,
+			wantErr:  false,
+		},
+		{
+			regex:    "(",
+			input:    "test",
+			expected: false,
+			wantErr:  true,
+		},
+		{
+			regex:    "",
+			input:    "",
+			expected: true,
+			wantErr:  false,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.input))
+
+			gluasprig.RegexMatchFunc(L)
+
+			result := L.Get(-2)
+			errValue := L.Get(-1)
+
+			if tt.wantErr {
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
+			} else {
+				require.Equal(t, lua.LTBool, result.Type(), "Expected boolean return type")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
+				require.Equal(t, tt.expected, bool(result.(lua.LBool)))
+			}
+		})
+	}
+}
+
+func TestRegexReplaceAllFunc(t *testing.T) {
+	tests := []struct {
+		regex       string
+		replacement string
+		input       string
+		expected    string
+		wantErr     bool
+	}{
+		{
+			regex:       "\\d+",
+			replacement: "NUM",
+			input:       "abc123def456",
+			expected:    "abcNUMdefNUM",
+			wantErr:     false,
+		},
+		{
+			regex:       "[a-z]+",
+			replacement: "WORD",
+			input:       "123abc456def",
+			expected:    "123WORD456WORD",
+			wantErr:     false,
+		},
+		{
+			regex:       "foo",
+			replacement: "bar",
+			input:       "footest foobar",
+			expected:    "bartest barbar",
+			wantErr:     false,
+		},
+		{
+			regex:       "(\\w+)@(\\w+)",
+			replacement: "$1@example",
+			input:       "contact user@domain.com",
+			expected:    "contact user@example.com",
+			wantErr:     false,
+		},
+		{
+			regex:       "\\s+",
+			replacement: " ",
+			input:       "multiple    spaces\t\tbetween\nwords",
+			expected:    "multiple spaces between words",
+			wantErr:     false,
+		},
+		{
+			regex:       "(",
+			replacement: "invalid",
+			input:       "test with invalid regex",
+			expected:    "",
+			wantErr:     true,
+		},
+		{
+			regex:       "",
+			replacement: "x",
+			input:       "empty regex",
+			expected:    "xexmxpxtxyx xrxexgxexxx",
+			wantErr:     false,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.input))
+			L.Push(lua.LString(tt.replacement))
+
+			gluasprig.RegexReplaceAllFunc(L)
+
+			result := L.Get(-2)
+			errValue := L.Get(-1)
+
+			if tt.wantErr {
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
+			} else {
+				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
+				require.Equal(t, tt.expected, result.String())
+			}
+		})
+	}
+}
+
+func TestRegexReplaceAllLiteralFunc(t *testing.T) {
+	tests := []struct {
+		regex       string
+		replacement string
+		input       string
+		expected    string
+		wantErr     bool
+	}{
+		{
+			regex:       "\\d+",
+			replacement: "NUM",
+			input:       "abc123def456",
+			expected:    "abcNUMdefNUM",
+			wantErr:     false,
+		},
+		{
+			regex:       "[a-z]+",
+			replacement: "WORD",
+			input:       "123abc456def",
+			expected:    "123WORD456WORD",
+			wantErr:     false,
+		},
+		{
+			regex:       "foo",
+			replacement: "bar",
+			input:       "footest foobar",
+			expected:    "bartest barbar",
+			wantErr:     false,
+		},
+		{
+			regex:       "(\\w+)@(\\w+)",
+			replacement: "$1@example",
+			input:       "contact user@domain.com",
+			expected:    "contact $1@example.com",
+			wantErr:     false,
+		},
+		{
+			regex:       "\\$\\d",
+			replacement: "DOLLAR",
+			input:       "Price: $5 and $9",
+			expected:    "Price: DOLLAR and DOLLAR",
+			wantErr:     false,
+		},
+		{
+			regex:       "(",
+			replacement: "invalid",
+			input:       "test with invalid regex",
+			expected:    "",
+			wantErr:     true,
+		},
+		{
+			regex:       "",
+			replacement: "x",
+			input:       "empty regex",
+			expected:    "xexmxpxtxyx xrxexgxexxx",
+			wantErr:     false,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.input))
+			L.Push(lua.LString(tt.replacement))
+
+			gluasprig.RegexReplaceAllLiteralFunc(L)
+
+			result := L.Get(-2)
+			errValue := L.Get(-1)
+
+			if tt.wantErr {
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result when error")
+				require.NotEqual(t, lua.LTNil, errValue.Type(), "Expected non-nil error")
+			} else {
+				require.Equal(t, lua.LTString, result.Type(), "Expected string return type")
+				require.Equal(t, lua.LTNil, errValue.Type(), "Expected nil error")
+				require.Equal(t, tt.expected, result.String())
+			}
+		})
+	}
+}
+
+func TestRegexSplitFunc(t *testing.T) {
+	tests := []struct {
+		regex    string
+		s        string
+		n        int
+		expected []string
+		hasError bool
+	}{
+		{
+			regex:    `,`,
+			s:        "a,b,c,d",
+			n:        -1,
+			expected: []string{"a", "b", "c", "d"},
+			hasError: false,
+		},
+		{
+			regex:    `\s+`,
+			s:        "hello  world   test",
+			n:        -1,
+			expected: []string{"hello", "world", "test"},
+			hasError: false,
+		},
+		{
+			regex:    `;`,
+			s:        "one;two;three",
+			n:        2,
+			expected: []string{"one", "two;three"},
+			hasError: false,
+		},
+		{
+			regex:    `\d+`,
+			s:        "abc123def456",
+			n:        -1,
+			expected: []string{"abc", "def", ""},
+			hasError: false,
+		},
+		{
+			regex:    `,`,
+			s:        "no commas here",
+			n:        -1,
+			expected: []string{"no commas here"},
+			hasError: false,
+		},
+		{
+			regex:    `[`,
+			s:        "invalid regex pattern",
+			n:        -1,
+			expected: nil,
+			hasError: true,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case_%d", i), func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			L.Push(lua.LString(tt.regex))
+			L.Push(lua.LString(tt.s))
+			L.Push(lua.LNumber(tt.n))
+
+			gluasprig.RegexSplitFunc(L)
+
+			if tt.hasError {
+				result := L.Get(-2)
+				errMsg := L.Get(-1)
+
+				require.Equal(t, lua.LTNil, result.Type(), "Expected nil result for invalid regex")
+				require.Equal(t, lua.LTString, errMsg.Type(), "Expected error message")
+			} else {
+				table := L.Get(-2)
+				errMsg := L.Get(-1)
+
+				require.Equal(t, lua.LTTable, table.Type(), "Expected table result")
+				require.Equal(t, lua.LTNil, errMsg.Type(), "Expected nil error")
+
+				tbl := table.(*lua.LTable)
+				results := make([]string, 0, tbl.Len())
+
+				tbl.ForEach(func(idx lua.LValue, value lua.LValue) {
+					require.Equal(t, lua.LTNumber, idx.Type(), "Expected numeric index")
+					require.Equal(t, lua.LTString, value.Type(), "Expected string value")
+
+					results = append(results, value.String())
+				})
+
+				require.Equal(t, len(tt.expected), len(results), "Table length doesn't match expected length")
+
+				if len(tt.expected) == 0 {
+					require.Empty(t, results, "Expected empty results")
+				} else {
+					require.Equal(t, tt.expected, results, "Table results don't match expected values")
+				}
+
+				require.Equal(t, len(tt.expected), tbl.Len(), "Table length doesn't match expected length")
+			}
 		})
 	}
 }

@@ -5,66 +5,7 @@ import (
 	"errors"
 
 	lua "github.com/yuin/gopher-lua"
-)
-
-// Preload adds json to the given Lua state's package.preload table. After it
-// has been preloaded, it can be loaded using require:
-//
-//	local json = require("json")
-func Preload(L *lua.LState) {
-	L.PreloadModule("json", Loader)
-}
-
-// Loader is the module loader function.
-func Loader(L *lua.LState) int {
-	t := L.NewTable()
-	L.SetFuncs(t, api)
-	L.Push(t)
-
-	return 1
-}
-
-var api = map[string]lua.LGFunction{
-	"decode": apiDecode,
-	"encode": apiEncode,
-}
-
-func apiDecode(L *lua.LState) int {
-	str := L.CheckString(1)
-
-	value, err := Decode(L, []byte(str))
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(value)
-
-	return 1
-}
-
-func apiEncode(L *lua.LState) int {
-	value := L.CheckAny(1)
-
-	data, err := Encode(value)
-	if err != nil {
-		L.Push(lua.LNil)
-		L.Push(lua.LString(err.Error()))
-
-		return 2
-	}
-
-	L.Push(lua.LString(string(data)))
-
-	return 1
-}
-
-var (
-	errNested      = errors.New("cannot encode recursively nested tables to JSON")
-	errSparseArray = errors.New("cannot encode sparse array")
-	errInvalidKeys = errors.New("cannot encode mixed or invalid key types")
+	"sigs.k8s.io/yaml"
 )
 
 type invalidTypeError lua.LValueType
@@ -73,17 +14,23 @@ func (i invalidTypeError) Error() string {
 	return `cannot encode ` + lua.LValueType(i).String() + ` to JSON`
 }
 
+type jsonValue struct {
+	lua.LValue
+	visited map[*lua.LTable]bool
+}
+
+var (
+	errNested      = errors.New("cannot encode recursively nested tables to JSON")
+	errSparseArray = errors.New("cannot encode sparse array")
+	errInvalidKeys = errors.New("cannot encode mixed or invalid key types")
+)
+
 // Encode returns the JSON encoding of value.
 func Encode(value lua.LValue) ([]byte, error) {
 	return json.Marshal(jsonValue{
 		LValue:  value,
 		visited: make(map[*lua.LTable]bool),
 	})
-}
-
-type jsonValue struct {
-	lua.LValue
-	visited map[*lua.LTable]bool
 }
 
 func (j jsonValue) MarshalJSON() (data []byte, err error) {
@@ -201,4 +148,129 @@ func DecodeValue(L *lua.LState, value any) lua.LValue {
 	}
 
 	return lua.LNil
+}
+
+// FromYAML converts the YAML encoded data to Lua values.
+func FromYAML(L *lua.LState, data []byte) (lua.LValue, error) {
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return Decode(L, jsonData)
+}
+
+// ToYAML returns the YAML encoding of value.
+func ToYAML(value lua.LValue) ([]byte, error) {
+	jsonData, err := Encode(value)
+	if err != nil {
+		return nil, err
+	}
+
+	return yaml.JSONToYAML(jsonData)
+}
+
+func apiDecode(L *lua.LState) int {
+	str := L.CheckString(1)
+
+	value, err := Decode(L, []byte(str))
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(value)
+
+	return 1
+}
+
+func apiEncode(L *lua.LState) int {
+	value := L.CheckAny(1)
+
+	data, err := Encode(value)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(string(data)))
+
+	return 1
+}
+
+func apiFromYAML(L *lua.LState) int {
+	str := L.CheckString(1)
+
+	jsonData, err := yaml.YAMLToJSON([]byte(str))
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	value, err := Decode(L, jsonData)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(value)
+
+	return 1
+}
+
+func apiToYAML(L *lua.LState) int {
+	value := L.CheckAny(1)
+
+	jsonData, err := Encode(value)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	yamlData, err := yaml.JSONToYAML(jsonData)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(string(yamlData)))
+
+	return 1
+}
+
+var api = map[string]lua.LGFunction{
+	"decode":   apiDecode,
+	"encode":   apiEncode,
+	"fromYAML": apiFromYAML,
+	"toYAML":   apiToYAML,
+}
+
+// Loader is the module loader function.
+func Loader(L *lua.LState) int {
+	t := L.NewTable()
+
+	L.SetFuncs(t, api)
+	L.Push(t)
+
+	return 1
+}
+
+// Preload adds json to the given Lua state's package.preload table. After it
+// has been preloaded, it can be loaded using require:
+//
+//	local json = require("json")
+func Preload(L *lua.LState) {
+	L.PreloadModule("json", Loader)
 }

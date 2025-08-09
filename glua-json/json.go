@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	lua "github.com/yuin/gopher-lua"
+	"sigs.k8s.io/yaml"
 )
 
 type invalidTypeError lua.LValueType
@@ -149,6 +150,26 @@ func DecodeValue(L *lua.LState, value any) lua.LValue {
 	return lua.LNil
 }
 
+// FromYAML converts the YAML encoded data to Lua values.
+func FromYAML(L *lua.LState, data []byte) (lua.LValue, error) {
+	jsonData, err := yaml.YAMLToJSON(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return Decode(L, jsonData)
+}
+
+// ToYAML returns the YAML encoding of value.
+func ToYAML(value lua.LValue) ([]byte, error) {
+	jsonData, err := Encode(value)
+	if err != nil {
+		return nil, err
+	}
+
+	return yaml.JSONToYAML(jsonData)
+}
+
 func apiDecode(L *lua.LState) int {
 	str := L.CheckString(1)
 
@@ -181,9 +202,59 @@ func apiEncode(L *lua.LState) int {
 	return 1
 }
 
+func apiFromYAML(L *lua.LState) int {
+	str := L.CheckString(1)
+
+	jsonData, err := yaml.YAMLToJSON([]byte(str))
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	value, err := Decode(L, jsonData)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(value)
+
+	return 1
+}
+
+func apiToYAML(L *lua.LState) int {
+	value := L.CheckAny(1)
+
+	jsonData, err := Encode(value)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	yamlData, err := yaml.JSONToYAML(jsonData)
+	if err != nil {
+		L.Push(lua.LNil)
+		L.Push(lua.LString(err.Error()))
+
+		return 2
+	}
+
+	L.Push(lua.LString(string(yamlData)))
+
+	return 1
+}
+
 var api = map[string]lua.LGFunction{
-	"decode": apiDecode,
-	"encode": apiEncode,
+	"decode":   apiDecode,
+	"encode":   apiEncode,
+	"fromYAML": apiFromYAML,
+	"toYAML":   apiToYAML,
 }
 
 // Loader is the module loader function.

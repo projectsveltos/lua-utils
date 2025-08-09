@@ -4,15 +4,19 @@
 //
 // The following functions are exposed by the library:
 //
-//	decode(string): Decodes a JSON string. Returns nil and an error string if
-//	                the string could not be decoded.
-//	encode(value):  Encodes a value into a JSON string. Returns nil and an error
-//	                string if the value could not be encoded.
+//	decode(string):   Decodes a JSON string. Returns nil and an error string if
+//	                  the string could not be decoded.
+//	encode(value):    Encodes a value into a JSON string. Returns nil and an error
+//	                  string if the value could not be encoded.
+//	fromYAML(string): Decodes a YAML string. Returns nil and an error string if
+//	                  the string could not be decoded.
+//	toYAML(value):    Encodes a value into a YAML string. Returns nil and an error
+//	                  string if the value could not be encoded.
 //
 // The following types are supported:
 //
-//	Lua      | JSON
-//	---------+-----
+//	Lua      | JSON/YAML
+//	---------+----------
 //	nil      | null
 //	number   | number
 //	string   | string

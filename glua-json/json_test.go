@@ -2,6 +2,8 @@ package json_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	luajson "github.com/projectsveltos/lua-utils/glua-json"
@@ -290,6 +292,176 @@ func TestEncode(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, string(data))
+		})
+	}
+}
+
+func TestYAMLIntegration(t *testing.T) {
+	yamlTestData := `
+name: test
+value: 42
+items:
+  - one
+  - two`
+
+	luaSetup := `local json = require("json")`
+
+	yamlToLuaTest := fmt.Sprintf(`
+		-- Test YAML to Lua conversion
+		local yamlStr = %q
+		local luaObj = json.fromYAML(yamlStr)
+		assert(luaObj.name == "test")
+		assert(luaObj.value == 42)
+		assert(luaObj.items[1] == "one")
+		assert(luaObj.items[2] == "two")`, strings.TrimSpace(yamlTestData))
+
+	luaToYamlTest := `
+		-- Test Lua to YAML conversion
+		local obj = {name = "example", count = 123, tags = {"a", "b"}}
+		local yamlResult = json.toYAML(obj)
+		assert(type(yamlResult) == "string")
+		assert(string.find(yamlResult, "name: example"))
+		assert(string.find(yamlResult, "count: 123"))`
+
+	roundTripTest := `
+		-- Test round-trip conversion
+		local original = {greeting = "hello", numbers = {1, 2, 3}}
+		local yamlString = json.toYAML(original)
+		local restored = json.fromYAML(yamlString)
+		assert(restored.greeting == original.greeting)
+		assert(restored.numbers[1] == original.numbers[1])
+		assert(restored.numbers[2] == original.numbers[2])
+		assert(restored.numbers[3] == original.numbers[3])`
+
+	luaScript := luaSetup + yamlToLuaTest + luaToYamlTest + roundTripTest
+
+	s := lua.NewState()
+	defer s.Close()
+
+	luajson.Preload(s)
+
+	if err := s.DoString(luaScript); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestFromYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected func(*lua.LState) lua.LValue
+		wantErr  string
+	}{
+		{
+			name: "simple YAML object",
+			input: `name: test
+value: 42`,
+			expected: func(L *lua.LState) lua.LValue {
+				tbl := L.CreateTable(0, 2)
+				tbl.RawSetString("name", lua.LString("test"))
+				tbl.RawSetString("value", lua.LNumber(42))
+				return tbl
+			},
+		},
+		{
+			name: "YAML array",
+			input: `- one
+- two
+- three`,
+			expected: func(L *lua.LState) lua.LValue {
+				tbl := L.CreateTable(3, 0)
+				tbl.Append(lua.LString("one"))
+				tbl.Append(lua.LString("two"))
+				tbl.Append(lua.LString("three"))
+				return tbl
+			},
+		},
+		{
+			name:    "invalid YAML",
+			input:   "invalid: yaml: content:",
+			wantErr: "yaml:",
+		},
+	}
+
+	L := lua.NewState()
+	defer L.Close()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := luajson.FromYAML(L, []byte(tt.input))
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			expected := tt.expected(L)
+			assert.True(t, luaValuesEqual(expected, result),
+				"expected %v but got %v", expected, result)
+		})
+	}
+}
+
+func TestToYAML(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    func(*lua.LState) lua.LValue
+		contains []string
+		wantErr  string
+	}{
+		{
+			name: "simple object",
+			input: func(L *lua.LState) lua.LValue {
+				tbl := L.CreateTable(0, 2)
+				tbl.RawSetString("name", lua.LString("test"))
+				tbl.RawSetString("value", lua.LNumber(42))
+				return tbl
+			},
+			contains: []string{"name: test", "value: 42"},
+		},
+		{
+			name: "array",
+			input: func(L *lua.LState) lua.LValue {
+				tbl := L.CreateTable(2, 0)
+				tbl.Append(lua.LString("one"))
+				tbl.Append(lua.LString("two"))
+				return tbl
+			},
+			contains: []string{"- one", "- two"},
+		},
+		{
+			name: "nested object",
+			input: func(L *lua.LState) lua.LValue {
+				inner := L.CreateTable(0, 1)
+				inner.RawSetString("count", lua.LNumber(5))
+
+				outer := L.CreateTable(0, 1)
+				outer.RawSetString("inner", inner)
+				return outer
+			},
+			contains: []string{"inner:", "count: 5"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			L := lua.NewState()
+			defer L.Close()
+
+			input := tt.input(L)
+			result, err := luajson.ToYAML(input)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			resultStr := string(result)
+			for _, expected := range tt.contains {
+				assert.Contains(t, resultStr, expected)
+			}
 		})
 	}
 }
